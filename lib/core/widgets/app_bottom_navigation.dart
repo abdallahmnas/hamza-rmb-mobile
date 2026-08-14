@@ -25,8 +25,7 @@ class AppBottomNavigation extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        child: BottomNavigationBar(
+      child: BottomNavigationBar(
           currentIndex: currentIndex,
           onTap: onTap,
           backgroundColor: AppColors.surface,
@@ -64,7 +63,6 @@ class AppBottomNavigation extends StatelessWidget {
               label: 'ACCOUNT',
             ),
           ],
-        ),
       ),
     );
   }

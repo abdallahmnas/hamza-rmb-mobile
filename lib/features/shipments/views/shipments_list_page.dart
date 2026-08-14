@@ -10,12 +10,13 @@ class ShipmentsListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'My Shipments',
           style: AppTypography.headlineMd,
         ),
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.background,
         elevation: 0,
         actions: [
           IconButton(

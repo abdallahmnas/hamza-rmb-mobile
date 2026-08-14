@@ -11,7 +11,7 @@ class App extends StatelessWidget {
       title: 'Hamza RMB',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       routerConfig: appRouter,
     );
   }
