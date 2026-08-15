@@ -51,7 +51,6 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-                // Logo placeholder or text
                 Text(
                   'Logicore',
                   style: AppTypography.headlineLg,
@@ -60,11 +59,13 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 12),
                 Text(
                   'Welcome back, please log in to your account.',
-                  style: AppTypography.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
+                  style: AppTypography.bodyLg.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
-                
+
                 AppTextField(
                   controller: _emailController,
                   labelText: 'Email Address',
@@ -78,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 24),
-                
+
                 AppPasswordField(
                   controller: _passwordController,
                   labelText: 'Password',
@@ -91,12 +92,12 @@ class _LoginPageState extends State<LoginPage> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      // Navigate to forgot password
+                      // Navigate to forgot password Page
                     },
                     child: Text(
                       'Forgot Password?',
@@ -107,14 +108,14 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 32),
                 AppButton.primary(
                   text: 'Log In',
                   onPressed: _handleLogin,
                   isLoading: _isLoading,
                 ),
-                
+
                 const SizedBox(height: 24),
                 // Biometric Login (FaceID/Fingerprint)
                 AppButton.secondary(
@@ -123,18 +124,20 @@ class _LoginPageState extends State<LoginPage> {
                     // Trigger biometrics
                   },
                 ),
-                
+
                 const SizedBox(height: 48),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       'Don\'t have an account? ',
-                      style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
                     ),
                     TextButton(
                       onPressed: () {
-                        // Navigate to sign up
+                        // Navigate to sign up Page
                       },
                       child: Text(
                         'Sign Up',
