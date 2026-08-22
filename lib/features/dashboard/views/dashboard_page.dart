@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../app/theme/app_typography.dart';
@@ -46,7 +47,7 @@ class DashboardPage extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => context.push('/notifications'),
             icon: const Icon(
               Icons.notifications_outlined,
               color: AppColors.onBackground,
@@ -166,7 +167,7 @@ class DashboardPage extends StatelessWidget {
                         child: SizedBox(
                           height: 42,
                           child: ElevatedButton.icon(
-                            onPressed: () {},
+                            onPressed: () => _showFundWalletSheet(context),
                             icon: const Icon(Icons.add_circle_outline, size: 18),
                             label: Text(
                               'Fund Wallet',
@@ -254,7 +255,7 @@ class DashboardPage extends StatelessWidget {
             _QuickActionItem(
               icon: Icons.add_box_outlined,
               label: 'Pre-\nalert',
-              onTap: () {},
+              onTap: () => context.push('/pre-alert'),
             ),
 
             const SizedBox(height: 28),
@@ -481,6 +482,240 @@ class DashboardPage extends StatelessWidget {
       ),
     );
   }
+
+  void _showFundWalletSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.account_balance,
+                    color: AppColors.secondary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fund Your Wallet',
+                        style: AppTypography.headlineMd.copyWith(fontSize: 18),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Transfer to the account below',
+                        style: AppTypography.bodySm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Info notice
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.tertiary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.tertiary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: AppColors.tertiary,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Your wallet will be credited automatically after a successful transfer.',
+                      style: AppTypography.bodySm.copyWith(
+                        color: AppColors.onBackground,
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Account details card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  _FundDetailRow(
+                    label: 'Bank Name',
+                    value: 'Guaranty Trust Bank',
+                    onCopy: () => _copyToClipboard(ctx, 'Guaranty Trust Bank'),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  ),
+                  _FundDetailRow(
+                    label: 'Account Number',
+                    value: '0123456789',
+                    onCopy: () => _copyToClipboard(ctx, '0123456789'),
+                    isMono: true,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  ),
+                  _FundDetailRow(
+                    label: 'Account Name',
+                    value: 'Hamza RMB Logistics Ltd',
+                    onCopy: () => _copyToClipboard(ctx, 'Hamza RMB Logistics Ltd'),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  ),
+                  _FundDetailRow(
+                    label: 'Reference',
+                    value: 'HZ-20241001',
+                    onCopy: () => _copyToClipboard(ctx, 'HZ-20241001'),
+                    isMono: true,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Copy all button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(const ClipboardData(
+                    text:
+                        'Bank: Guaranty Trust Bank\nAccount: 0123456789\nName: Hamza RMB Logistics Ltd\nRef: HZ-20241001',
+                  ));
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: const Text('All details copied!'),
+                      backgroundColor: AppColors.primary,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: Text(
+                  'Copy All Details',
+                  style: AppTypography.bodyMd.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Done button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'Done',
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+
+            SizedBox(height: MediaQuery.of(ctx).viewPadding.bottom),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _copyToClipboard(BuildContext context, String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('"$text" copied!'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
 }
 
 // ── Quick Action Item ──────────────────────────────────────────────────────
@@ -610,6 +845,72 @@ class _TimelineEntry extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Fund Detail Row ────────────────────────────────────────────────────────
+class _FundDetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback onCopy;
+  final bool isMono;
+
+  const _FundDetailRow({
+    required this.label,
+    required this.value,
+    required this.onCopy,
+    this.isMono = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTypography.bodySm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: isMono
+                    ? AppTypography.labelCaps.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        letterSpacing: 0.5,
+                      )
+                    : AppTypography.bodyMd.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+              ),
+            ],
+          ),
+        ),
+        GestureDetector(
+          onTap: onCopy,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(
+              Icons.copy_rounded,
+              size: 16,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

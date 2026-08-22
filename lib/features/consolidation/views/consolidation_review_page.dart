@@ -54,8 +54,11 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
         actions: [
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.onBackground, size: 24),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.onBackground,
+              size: 24,
+            ),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -64,7 +67,11 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
               child: const CircleAvatar(
                 radius: 16,
                 backgroundColor: AppColors.primary,
-                child: Icon(Icons.person_outlined, color: Colors.white, size: 18),
+                child: Icon(
+                  Icons.person_outlined,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
           ),
@@ -112,8 +119,9 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                       value: 1.0,
                       minHeight: 6,
                       backgroundColor: Color(0xFFE2E8F0),
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.secondary),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.secondary,
+                      ),
                     ),
                   ),
                 ],
@@ -136,22 +144,26 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
             const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
+              child: Row(
                 children: [
-                  _ShippingMethodCard(
-                    icon: Icons.flight,
-                    title: 'Air Freight',
-                    subtitle: '5-7 Business Days',
-                    isSelected: _shippingMethod == 'air',
-                    onTap: () => setState(() => _shippingMethod = 'air'),
+                  Expanded(
+                    child: _ShippingMethodCard(
+                      icon: Icons.flight,
+                      title: 'Air Freight',
+                      subtitle: '5-7 Business Days',
+                      isSelected: _shippingMethod == 'air',
+                      onTap: () => setState(() => _shippingMethod = 'air'),
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  _ShippingMethodCard(
-                    icon: Icons.sailing_outlined,
-                    title: 'Sea Freight',
-                    subtitle: '30-45 Business Days',
-                    isSelected: _shippingMethod == 'sea',
-                    onTap: () => setState(() => _shippingMethod = 'sea'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ShippingMethodCard(
+                      icon: Icons.sailing_outlined,
+                      title: 'Sea Freight',
+                      subtitle: '30-45 Business Days',
+                      isSelected: _shippingMethod == 'sea',
+                      onTap: () => setState(() => _shippingMethod = 'sea'),
+                    ),
                   ),
                 ],
               ),
@@ -220,11 +232,20 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const _CostRow(label: 'Item Total (3 Packages)', value: 'NGN 1,250,000'),
+                    const _CostRow(
+                      label: 'Item Total (3 Packages)',
+                      value: 'NGN 1,250,000',
+                    ),
                     const SizedBox(height: 10),
-                    const _CostRow(label: 'Shipping Fee (Air Freight)', value: 'NGN 45,000'),
+                    const _CostRow(
+                      label: 'Shipping Fee (Air Freight)',
+                      value: 'NGN 45,000',
+                    ),
                     const SizedBox(height: 10),
-                    const _CostRow(label: 'Consolidation Service Fee', value: 'NGN 5,000'),
+                    const _CostRow(
+                      label: 'Consolidation Service Fee',
+                      value: 'NGN 5,000',
+                    ),
                     const SizedBox(height: 14),
                     const Divider(height: 1, color: Color(0xFFE2E8F0)),
                     const SizedBox(height: 14),
@@ -305,7 +326,11 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.lock_outline, size: 14, color: AppColors.onSurfaceVariant),
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 14,
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     'Secure checkout process',
@@ -345,7 +370,7 @@ class _ShippingMethodCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : AppColors.surface,
           borderRadius: BorderRadius.circular(12),
@@ -353,60 +378,63 @@ class _ShippingMethodCard extends StatelessWidget {
               ? null
               : Border.all(color: const Color(0xFFE2E8F0)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isSelected
+                        ? Colors.white
+                        : AppColors.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? AppColors.secondary
+                        : Colors.transparent,
+                    border: isSelected
+                        ? null
+                        : Border.all(color: const Color(0xFFCBD5E1), width: 2),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white, size: 14)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: AppTypography.bodyMd.copyWith(
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : AppColors.onBackground,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: AppTypography.bodySm.copyWith(
                 color: isSelected
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(8),
+                    ? Colors.white.withValues(alpha: 0.7)
+                    : AppColors.onSurfaceVariant,
+                fontSize: 11,
               ),
-              child: Icon(
-                icon,
-                color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTypography.bodyMd.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : AppColors.onBackground,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTypography.bodySm.copyWith(
-                      color: isSelected
-                          ? Colors.white.withValues(alpha: 0.7)
-                          : AppColors.onSurfaceVariant,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected ? AppColors.secondary : Colors.transparent,
-                border: isSelected
-                    ? null
-                    : Border.all(color: const Color(0xFFCBD5E1), width: 2),
-              ),
-              child: isSelected
-                  ? const Icon(Icons.check, color: Colors.white, size: 14)
-                  : null,
             ),
           ],
         ),

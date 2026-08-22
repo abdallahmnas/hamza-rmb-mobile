@@ -24,13 +24,15 @@ class _SplashPageState extends State<SplashPage>
       duration: const Duration(milliseconds: 1200),
     );
 
-    _fadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+    _fadeIn = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
-    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _scale = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
 
@@ -76,7 +78,7 @@ class _SplashPageState extends State<SplashPage>
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Logicore',
+                  'HamzaRMB Logistics.',
                   style: AppTypography.headlineLg.copyWith(
                     color: AppColors.onPrimary,
                     letterSpacing: -0.5,
