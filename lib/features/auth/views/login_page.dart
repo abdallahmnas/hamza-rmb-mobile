@@ -52,7 +52,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 const SizedBox(height: 60),
                 Text(
-                  'Logicore',
+                  'HamzaRMB',
                   style: AppTypography.headlineLg,
                   textAlign: TextAlign.center,
                 ),

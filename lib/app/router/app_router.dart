@@ -6,6 +6,8 @@ import '../../features/auth/views/login_page.dart';
 import '../../features/shell/views/main_shell_page.dart';
 import '../../features/shipments/views/shipments_list_page.dart';
 import '../../features/exchange/views/exchange_page.dart';
+import '../../features/exchange/views/exchange_review_page.dart';
+import '../../features/exchange/models/exchange_review_data.dart';
 import '../../features/procurement/views/buy_for_me_page.dart';
 import '../../features/consolidation/views/consolidation_flow_page.dart';
 import '../../features/consolidation/views/consolidation_review_page.dart';
@@ -51,6 +53,24 @@ final appRouter = GoRouter(
       path: '/exchange',
       name: 'exchange',
       builder: (context, state) => const ExchangePage(),
+    ),
+    GoRoute(
+      path: '/exchange-review',
+      name: 'exchangeReview',
+      builder: (context, state) {
+        final data = state.extra as ExchangeReviewData? ??
+            const ExchangeReviewData(
+              sendAmount: '0',
+              receiveAmount: '0',
+              sendCurrency: 'NGN',
+              receiveCurrency: 'CNY',
+              exchangeRate: '',
+              selectedPlatform: 'alipay',
+              beneficiaryName: '',
+              accountId: '',
+            );
+        return ExchangeReviewPage(reviewData: data);
+      },
     ),
     GoRoute(
       path: '/buy-for-me',

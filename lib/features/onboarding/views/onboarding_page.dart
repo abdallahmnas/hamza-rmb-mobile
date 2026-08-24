@@ -17,19 +17,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   final List<_OnboardingData> _pages = const [
     _OnboardingData(
-      icon: Icons.local_shipping_outlined,
+      imagePath: 'assets/images/onboarding_ship.jpg',
       title: 'Ship Globally',
       description:
           'Send and receive packages from China, UK, USA & Dubai — all in one place.',
     ),
     _OnboardingData(
-      icon: Icons.currency_exchange_outlined,
+      imagePath: 'assets/images/onboarding_exchange.jpg',
       title: 'Currency Exchange',
       description:
           'Convert between Naira, Yuan, Pounds and Dollars at competitive rates.',
     ),
     _OnboardingData(
-      icon: Icons.shopping_cart_outlined,
+      imagePath: 'assets/images/onboarding_buy.jpg',
       title: 'Buy For Me',
       description:
           'Can\'t buy it yourself? We\'ll purchase items on your behalf and ship them to you.',
@@ -97,21 +97,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon circle
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: AppColors.secondary.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            page.icon,
-                            size: 56,
-                            color: AppColors.secondary,
+                        // Illustration
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Image.asset(
+                            page.imagePath,
+                            height: 240,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
                           ),
                         ),
-                        const SizedBox(height: 48),
+                        const SizedBox(height: 32),
                         Text(
                           page.title,
                           style: AppTypography.headlineLg,
@@ -174,12 +170,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
 }
 
 class _OnboardingData {
-  final IconData icon;
+  final String imagePath;
   final String title;
   final String description;
 
   const _OnboardingData({
-    required this.icon,
+    required this.imagePath,
     required this.title,
     required this.description,
   });

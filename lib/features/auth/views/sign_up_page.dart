@@ -62,17 +62,16 @@ class _SignUpPageState extends State<SignUpPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Create an Account',
-                  style: AppTypography.headlineLg,
-                ),
+                Text('Create an Account', style: AppTypography.headlineLg),
                 const SizedBox(height: 8),
                 Text(
-                  'Join Logicore to manage your shipments and logistics with ease.',
-                  style: AppTypography.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
+                  'Join HamzaRMB to manage your shipments and logistics with ease.',
+                  style: AppTypography.bodyLg.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 Row(
                   children: [
                     Expanded(
@@ -101,7 +100,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                
+
                 AppTextField(
                   controller: _emailController,
                   labelText: 'Email Address',
@@ -113,7 +112,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   },
                 ),
                 const SizedBox(height: 20),
-                
+
                 AppTextField(
                   controller: _phoneController,
                   labelText: 'Phone Number',
@@ -125,7 +124,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   },
                 ),
                 const SizedBox(height: 20),
-                
+
                 AppPasswordField(
                   controller: _passwordController,
                   labelText: 'Password',
@@ -136,14 +135,14 @@ class _SignUpPageState extends State<SignUpPage> {
                     return null;
                   },
                 ),
-                
+
                 const SizedBox(height: 40),
                 AppButton.primary(
                   text: 'Sign Up',
                   onPressed: _handleSignUp,
                   isLoading: _isLoading,
                 ),
-                
+
                 const SizedBox(height: 24),
                 // Social Logins (Google/Apple)
                 Row(
@@ -163,14 +162,16 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 32),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       'Already have an account? ',
-                      style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
                     ),
                     TextButton(
                       onPressed: () {
