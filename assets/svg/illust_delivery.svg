@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" fill="none">
+  <defs>
+    <filter id="truck-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="-10" dy="18" stdDeviation="15" flood-color="#0f172a" flood-opacity="0.16" />
+    </filter>
+    <linearGradient id="truck-blue-side" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="truck-blue-top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="truck-orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ground Shadows -->
+  <ellipse cx="230" cy="305" rx="120" ry="34" fill="#0f172a" fill-opacity="0.12" />
+
+  <!-- Speed Motion Lines (Orange & Blue trails extending to upper left) -->
+  <g stroke-linecap="round">
+    <line x1="165" y1="110" x2="90" y2="70" stroke="#f97316" stroke-width="6"/>
+    <line x1="150" y1="130" x2="60" y2="85" stroke="#1d4ed8" stroke-width="6"/>
+    <line x1="135" y1="150" x2="80" y2="120" stroke="#ea580c" stroke-width="5"/>
+    <line x1="120" y1="170" x2="50" y2="135" stroke="#f97316" stroke-width="6"/>
+    <line x1="140" y1="190" x2="75" y2="155" stroke="#2563eb" stroke-width="5"/>
+    <line x1="110" y1="210" x2="70" y2="190" stroke="#ea580c" stroke-width="5"/>
+  </g>
+
+  <!-- Delivery Truck Assembly -->
+  <g filter="url(#truck-shadow)">
+    <!-- Cargo Box - Top Face -->
+    <path d="M150 140 L220 100 L285 135 L215 175 Z" fill="url(#truck-blue-top)"/>
+
+    <!-- Cargo Box - Back/Side Shadow Face -->
+    <path d="M150 140 L215 175 L215 250 L150 215 Z" fill="#172554"/>
+
+    <!-- Cargo Box - Main Side Face (Left/South Facing) -->
+    <path d="M150 140 L225 180 L225 255 L150 215 Z" fill="url(#truck-blue-side)"/>
+    <path d="M145 138 L225 180 L225 255 L145 212 Z" fill="#1e3a8a"/>
+
+    <!-- Side Graphic: LOCAL DELIVERY Text -->
+    <g transform="translate(150, 160) skewY(26)">
+      <text x="12" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="900" fill="#f97316" letter-spacing="1">LOCAL</text>
+      <text x="12" y="32" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="900" fill="#ffffff" letter-spacing="1">DELIVERY</text>
+    </g>
+
+    <!-- Cabin Top Face -->
+    <path d="M215 175 L255 152 L285 168 L245 192 Z" fill="url(#truck-blue-top)"/>
+
+    <!-- Cabin Windshield (Orange Gloss) -->
+    <path d="M245 192 L285 168 L305 210 L265 235 Z" fill="url(#truck-orange)"/>
+    <!-- Windshield Reflection -->
+    <path d="M255 196 L278 182 L290 208 L268 222 Z" fill="#ffffff" opacity="0.35"/>
+
+    <!-- Cabin Side (Door & Window) -->
+    <path d="M225 195 L265 220 L265 275 L225 250 Z" fill="#1d4ed8"/>
+    <!-- Side Window (Orange) -->
+    <path d="M232 205 L255 220 L255 240 L232 225 Z" fill="#fb923c"/>
+    <!-- Side Mirror -->
+    <rect x="264" y="215" width="4" height="12" rx="2" fill="#ea580c"/>
+
+    <!-- Front Bumper & Grill (Orange Accent) -->
+    <path d="M265 235 L305 210 L320 235 L280 260 Z" fill="#ea580c"/>
+    <!-- Headlights & Grill Lines -->
+    <rect x="284" y="246" width="6" height="6" rx="1" fill="#ffffff"/>
+    <rect x="306" y="232" width="6" height="6" rx="1" fill="#ffffff"/>
+    <line x1="292" y1="248" x2="304" y2="242" stroke="#9a3412" stroke-width="2"/>
+    <line x1="294" y1="252" x2="306" y2="246" stroke="#9a3412" stroke-width="2"/>
+
+    <!-- Front Chassis Strip -->
+    <path d="M220 252 L280 286 L280 292 L220 258 Z" fill="#f97316"/>
+
+    <!-- 3D Wheels & Hubs -->
+    <!-- Rear Wheel -->
+    <g transform="translate(168, 240)">
+      <ellipse cx="14" cy="18" rx="12" ry="16" fill="#0f172a"/>
+      <ellipse cx="14" cy="18" rx="6" ry="9" fill="#cbd5e1"/>
+    </g>
+    <!-- Front Wheel -->
+    <g transform="translate(245, 270)">
+      <ellipse cx="14" cy="20" rx="12" ry="16" fill="#0f172a"/>
+      <ellipse cx="14" cy="20" rx="6" ry="9" fill="#cbd5e1"/>
+    </g>
+  </g>
+</svg>

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_bottom_navigation.dart';
+import '../../../core/auth/auth_guard.dart';
 import '../../../app/theme/app_colors.dart';
 
 import '../../dashboard/views/dashboard_page.dart';
@@ -17,17 +18,19 @@ class MainShellPage extends StatefulWidget {
 class _MainShellPageState extends State<MainShellPage> {
   int _currentIndex = 0;
 
+  // Dashboard and Shipments are public; Wallet and Profile are protected
   final List<Widget> _pages = const [
     DashboardPage(),
     ShipmentsListPage(),
-    WalletPage(),
-    ProfilePage(),
+    AuthGuard(child: WalletPage()),
+    AuthGuard(child: ProfilePage()),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,

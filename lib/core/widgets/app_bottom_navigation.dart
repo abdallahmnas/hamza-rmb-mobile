@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_typography.dart';
 
@@ -12,57 +13,105 @@ class AppBottomNavigation extends StatelessWidget {
     required this.onTap,
   });
 
+  static const List<_NavItem> _items = [
+    _NavItem(svgPath: 'assets/svg/ic_home.svg', label: 'Home'),
+    _NavItem(svgPath: 'assets/svg/ic_shipments.svg', label: 'Shipments'),
+    _NavItem(svgPath: 'assets/svg/ic_wallet.svg', label: 'Wallet'),
+    _NavItem(svgPath: 'assets/svg/ic_account.svg', label: 'Account'),
+  ];
+
+  static const Color _activeColor = AppColors.brandOrange;
+  static const Color _inactiveColor = Color(0xFF94A3B8);
+
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      child: BottomNavigationBar(
-          currentIndex: currentIndex,
-          onTap: onTap,
-          backgroundColor: AppColors.surface,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppColors.primary, // Deep Slate
-          unselectedItemColor: const Color(0xFF94A3B8), // Slate-400
-          selectedLabelStyle: AppTypography.labelCaps.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(_items.length, (index) {
+              final item = _items[index];
+              final isActive = currentIndex == index;
+              return _NavBarItem(
+                item: item,
+                isActive: isActive,
+                activeColor: _activeColor,
+                inactiveColor: _inactiveColor,
+                onTap: () => onTap(index),
+              );
+            }),
           ),
-          unselectedLabelStyle: AppTypography.labelCaps.copyWith(
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF94A3B8),
-          ),
-          elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'HOME',
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem {
+  final String svgPath;
+  final String label;
+
+  const _NavItem({required this.svgPath, required this.label});
+}
+
+class _NavBarItem extends StatelessWidget {
+  final _NavItem item;
+  final bool isActive;
+  final Color activeColor;
+  final Color inactiveColor;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.item,
+    required this.isActive,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? activeColor : inactiveColor;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              item.svgPath,
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.local_shipping_outlined),
-              activeIcon: Icon(Icons.local_shipping),
-              label: 'SHIPMENTS',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              activeIcon: Icon(Icons.account_balance_wallet),
-              label: 'WALLET',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'ACCOUNT',
+            const SizedBox(height: 4),
+            Text(
+              item.label,
+              style: AppTypography.bodySm.copyWith(
+                color: color,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 11,
+              ),
             ),
           ],
+        ),
       ),
     );
   }

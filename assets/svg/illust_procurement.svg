@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" fill="none">
+  <!-- Defs & Gradients -->
+  <defs>
+    <filter id="procure-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.14" />
+    </filter>
+    <linearGradient id="bg-window" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#eff4ff"/>
+    </linearGradient>
+    <linearGradient id="bag-front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="bag-side" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#172554"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="box-orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Title Text -->
+  <text x="200" y="52" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="800" fill="#1e3a8a" letter-spacing="3">PROCUREMENT</text>
+
+  <!-- Soft Isometric Ground Shadow -->
+  <ellipse cx="205" cy="340" rx="145" ry="36" fill="#0f172a" fill-opacity="0.08" />
+
+  <!-- Background Browser Window (Isometric Angle) -->
+  <g filter="url(#procure-shadow)">
+    <!-- Browser Body -->
+    <path d="M190 120 L330 178 L330 285 L190 228 Z" fill="url(#bg-window)" stroke="#cbd5e1" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Browser Top Bar -->
+    <path d="M190 120 L330 178 L330 200 L190 142 Z" fill="#1e293b"/>
+    <!-- Browser Window Dots -->
+    <circle cx="210" cy="140" r="3.5" fill="#ef4444"/>
+    <circle cx="222" cy="145" r="3.5" fill="#f59e0b"/>
+    <circle cx="234" cy="150" r="3.5" fill="#10b981"/>
+
+    <!-- Buy Button on Window -->
+    <path d="M225 210 L285 235 L285 260 L225 235 Z" fill="url(#box-orange)" rx="4"/>
+    <text x="255" y="244" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="800" fill="#ffffff" transform="rotate(22 255 244)">BUY</text>
+    
+    <!-- Cursor Arrow clicking Buy -->
+    <path d="M272 250 L286 280 L280 282 L274 270 L266 276 Z" fill="#0f172a" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Box Inside Shopping Bag -->
+  <g filter="url(#procure-shadow)">
+    <!-- Box Top Face -->
+    <path d="M150 148 L178 135 L206 148 L178 161 Z" fill="#fb923c"/>
+    <!-- Box Left Face -->
+    <path d="M150 148 L178 161 L178 198 L150 185 Z" fill="#ea580c"/>
+    <!-- Box Right Face -->
+    <path d="M178 161 L206 148 L206 185 L178 198 Z" fill="#c2410c"/>
+    <!-- Box Ribbon / Tape -->
+    <path d="M164 141 L192 154 L192 191 L164 178 Z" fill="#fdba74" opacity="0.8"/>
+  </g>
+
+  <!-- Shopping Bag (Foreground) -->
+  <g filter="url(#procure-shadow)">
+    <!-- Bag Left Side (Dark Shadowed) -->
+    <path d="M80 205 L120 182 L160 300 L120 325 Z" fill="url(#bag-side)"/>
+    <!-- Bag Front Face (Primary Blue) -->
+    <path d="M120 182 L215 220 L175 340 L120 325 Z" fill="url(#bag-front)"/>
+    <!-- Bag Inner Rim / Fold -->
+    <path d="M80 205 L120 182 L215 220 L175 243 Z" fill="#1e3a8a"/>
+
+    <!-- Orange Handle -->
+    <path d="M140 220 C140 200 195 222 195 242" fill="none" stroke="#f97316" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

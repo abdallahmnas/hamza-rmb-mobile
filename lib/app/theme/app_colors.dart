@@ -32,4 +32,8 @@ class AppColors {
   
   static const Color onDarkBackground = Colors.white;
   static const Color onDarkSurface = Colors.white;
+
+  // Brand Accent — used in dashboard header gradient
+  static const Color brandOrange = Color(0xFFE8511A);
+  static const Color brandOrangeLight = Color(0xFFF8924A);
 }

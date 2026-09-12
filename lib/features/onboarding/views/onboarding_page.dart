@@ -1,35 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/storage/local_storage.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-class OnboardingPage extends StatefulWidget {
+class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
 
   @override
-  State<OnboardingPage> createState() => _OnboardingPageState();
+  ConsumerState<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class _OnboardingPageState extends State<OnboardingPage> {
+class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
   final List<_OnboardingData> _pages = const [
     _OnboardingData(
-      imagePath: 'assets/images/onboarding_ship.jpg',
+      imagePath: 'assets/svg/illust_delivery.svg',
       title: 'Ship Globally',
       description:
           'Send and receive packages from China, UK, USA & Dubai — all in one place.',
     ),
     _OnboardingData(
-      imagePath: 'assets/images/onboarding_exchange.jpg',
+      imagePath: 'assets/svg/illust_exchange.svg',
       title: 'Currency Exchange',
       description:
           'Convert between Naira, Yuan, Pounds and Dollars at competitive rates.',
     ),
     _OnboardingData(
-      imagePath: 'assets/images/onboarding_buy.jpg',
+      imagePath: 'assets/svg/illust_procurement.svg',
       title: 'Buy For Me',
       description:
           'Can\'t buy it yourself? We\'ll purchase items on your behalf and ship them to you.',
@@ -49,11 +52,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
         curve: Curves.easeInOut,
       );
     } else {
-      context.go('/splash');
+      _completeOnboarding();
     }
   }
 
   void _onSkip() {
+    _completeOnboarding();
+  }
+
+  void _completeOnboarding() {
+    ref.read(localStorageProvider).setString('onboarding_completed', 'true');
     context.go('/splash');
   }
 
@@ -100,11 +108,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
                         // Illustration
                         ClipRRect(
                           borderRadius: BorderRadius.circular(20),
-                          child: Image.asset(
+                          child: SvgPicture.asset(
                             page.imagePath,
                             height: 240,
                             width: double.infinity,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                height: 240,
+                                width: double.infinity,
+                                color: Colors.grey[200],
+                                child: const Icon(
+                                  Icons.image_not_supported,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(height: 32),

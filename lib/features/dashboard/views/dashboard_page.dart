@@ -1,916 +1,1347 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/widgets/section_header.dart';
-import '../../../app/theme/app_typography.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_typography.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends ConsumerState<DashboardPage> {
+  final PageController _bannerPageController = PageController();
+  int _currentBannerIndex = 0;
+
+  @override
+  void dispose() {
+    _bannerPageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authServiceProvider);
+    final isLoggedIn = authState.isLoggedIn;
+    final displayName = authState.displayName ?? 'Sarah Okonjo';
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        titleSpacing: 0,
-        leadingWidth: 48,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Center(
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(6),
+      backgroundColor: const Color(0xFFF1F5F9),
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Top Header Profile Bar ───────────────────────────────
+                _buildTopHeaderBar(context, isLoggedIn, displayName),
+                const SizedBox(height: 16),
+
+                // ── Top Promo Carousel Banner Card ───────────────────────
+                _buildPromoCarouselBanner(context),
+                const SizedBox(height: 20),
+
+                // ── "● All Services" Grid Section ────────────────────────
+                _buildAllServicesSection(context),
+                const SizedBox(height: 16),
+
+                // ── Live Tracking & Milestones Bar ────────────────────────
+                _buildLiveTrackingBar(context),
+                const SizedBox(height: 24),
+
+                // ── Logistics Shortcuts ───────────────────────────────────
+                _buildLogisticsShortcuts(context),
+                const SizedBox(height: 24),
+
+                // ── Live Shipment Card ────────────────────────────────────
+                _buildLiveShipmentSection(context),
+                const SizedBox(height: 90), // Bottom padding for shell nav bar
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 1. Top Header Profile Bar ─────────────────────────────────────────────
+  Widget _buildTopHeaderBar(
+    BuildContext context,
+    bool isLoggedIn,
+    String displayName,
+  ) {
+    return Row(
+      children: [
+        // Avatar with status indicator
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F473E),
+                shape: BoxShape.circle,
               ),
               child: Center(
                 child: Text(
-                  'H',
-                  style: AppTypography.bodySm.copyWith(
+                  'SO',
+                  style: AppTypography.bodyLg.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: 16,
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-        title: Text(
-          'Dashboard',
-          style: AppTypography.headlineMd.copyWith(fontSize: 18),
-        ),
-        actions: [
-          IconButton(
-            onPressed: () => context.push('/notifications'),
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.onBackground,
-              size: 24,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () {},
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.primary,
-                child: Icon(Icons.person_outlined, color: Colors.white, size: 18),
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFF1F5F9), width: 2),
+                ),
               ),
             ),
+          ],
+        ),
+        const SizedBox(width: 10),
+
+        // User info
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      isLoggedIn ? displayName : 'Sarah Oko...',
+                      style: AppTypography.bodyLg.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                        color: AppColors.onBackground,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEDBB2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'VIP',
+                      style: AppTypography.labelCaps.copyWith(
+                        color: const Color(0xFF78350F),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    color: Color(0xFF64748B),
+                    size: 13,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    'Lagos, NG',
+                    style: AppTypography.bodySm.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Exchange rate pill
+        GestureDetector(
+          onTap: () => context.push('/exchange'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE0F2FE),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFBAE6FD)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0284C7),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '¥1 = ₦228.5',
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFF0369A1),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.trending_up_rounded,
+                  color: Color(0xFF0284C7),
+                  size: 14,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 2. Top Promo Carousel Banner Card ─────────────────────────────────────
+  Widget _buildPromoCarouselBanner(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 146,
+          child: PageView(
+            controller: _bannerPageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentBannerIndex = index;
+              });
+            },
+            children: [
+              // Slide 1: Air Express
+              _buildAirExpressBannerSlide(context),
+              // Slide 2: Sea Freight
+              _buildSeaFreightBannerSlide(context),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Dots indicator
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: _currentBannerIndex == 0 ? 20 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: _currentBannerIndex == 0
+                    ? const Color(0xFF0D9488)
+                    : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(width: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: _currentBannerIndex == 1 ? 20 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: _currentBannerIndex == 1
+                    ? const Color(0xFF0D9488)
+                    : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAirExpressBannerSlide(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0F14),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Stack(
+        children: [
+          // Background ambient circular gradient
+          Positioned(
+            right: -20,
+            bottom: -30,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF0D9488).withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top tag & flight icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2DD4BF),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'EXPRESS FLIGHT',
+                      style: AppTypography.labelCaps.copyWith(
+                        color: const Color(0xFF042F2E),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 8,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.flight_takeoff_rounded,
+                    color: Color(0xFF2DD4BF),
+                    size: 18,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Title
+              Text(
+                'Air Express: 3-5 Days Direct',
+                style: AppTypography.headlineMd.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+
+              // Subtitle
+              Text(
+                'Daily departures Guangzhou (CAN) to Lagos (LOS).\nFast-track clearance included.',
+                style: AppTypography.bodySm.copyWith(
+                  color: const Color(0xFF94A3B8),
+                  fontSize: 10,
+                  height: 1.3,
+                ),
+              ),
+              const Spacer(),
+
+              // Action Link
+              GestureDetector(
+                onTap: () => context.push('/air-freight'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Book space now',
+                      style: AppTypography.bodySm.copyWith(
+                        color: const Color(0xFF2DD4BF),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF2DD4BF),
+                      size: 13,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeaFreightBannerSlide(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF031622),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -20,
+            bottom: -30,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'OCEAN ROUTE',
+                      style: AppTypography.labelCaps.copyWith(
+                        color: const Color(0xFF082F49),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 8,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.directions_boat_rounded,
+                    color: Color(0xFF38BDF8),
+                    size: 18,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Sea Cargo: From \$190 / CBM',
+                style: AppTypography.headlineMd.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Container loads & groupage straight to Apapa & Tincan.\nCustoms clearance included.',
+                style: AppTypography.bodySm.copyWith(
+                  color: const Color(0xFF94A3B8),
+                  fontSize: 10,
+                  height: 1.3,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => context.push('/sea-freight'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Get quote',
+                      style: AppTypography.bodySm.copyWith(
+                        color: const Color(0xFF38BDF8),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF38BDF8),
+                      size: 13,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 3. "● All Services" 6-Card Grid ───────────────────────────────────────
+  Widget _buildAllServicesSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0D9488),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'All Services',
+                  style: AppTypography.bodyLg.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: AppColors.onBackground,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                const Icon(
+                  Icons.help_outline_rounded,
+                  size: 13,
+                  color: Color(0xFF94A3B8),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  'ACTIVE',
+                  style: AppTypography.labelCaps.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Row 1: Air Freight & Sea Freight
+        Row(
+          children: [
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Air Freight',
+                description: 'Direct air cargo dispatch from China hubs to Lagos.',
+                actionText: 'Book flight',
+                badgeText: '3-5 DAYS',
+                icon: Icons.flight_takeoff_rounded,
+                gradientColors: const [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                onTap: () => context.push('/air-freight'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Sea Freight',
+                description: 'Large volume CBM, container loads &...',
+                actionText: 'Get quote',
+                badgeText: 'FROM \$190',
+                icon: Icons.directions_boat_rounded,
+                gradientColors: const [Color(0xFF0D9488), Color(0xFF0F766E)],
+                onTap: () => context.push('/sea-freight'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Row 2: Consolidation & Buy For Me
+        Row(
+          children: [
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Consolidation',
+                description: 'Merge multiple 1688 / Taobao parcels into 1...',
+                actionText: 'Start packing',
+                badgeText: 'SAVE 35%',
+                icon: Icons.inventory_2_outlined,
+                gradientColors: const [Color(0xFFEA580C), Color(0xFFF97316)],
+                onTap: () => context.push('/consolidate'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Buy For Me',
+                description: 'Sourcing, negotiation & factory inspection.',
+                actionText: 'Request item',
+                badgeText: '0% AGENT',
+                icon: Icons.shopping_cart_outlined,
+                gradientColors: const [Color(0xFF059669), Color(0xFF10B981)],
+                onTap: () => context.push('/buy-for-me'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Row 3: RMB Exchange & Local Delivery
+        Row(
+          children: [
+            Expanded(
+              child: _buildServiceCard(
+                title: 'RMB Exchange',
+                description: 'Instant NGN to Alipay, WeChat & bank pay.',
+                actionText: 'Swap now',
+                badgeText: 'INSTANT',
+                icon: Icons.currency_exchange_rounded,
+                gradientColors: const [Color(0xFFDC2626), Color(0xFFEF4444)],
+                onTap: () => context.push('/exchange'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Local Delivery',
+                description: 'Dispatch across Lagos Mainland, Island & States.',
+                actionText: 'Send parcel',
+                badgeText: 'DOORSTEP',
+                icon: Icons.local_shipping_outlined,
+                gradientColors: const [Color(0xFF7C3AED), Color(0xFF8B5CF6)],
+                onTap: () => _showDeliveryDialog(context),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildServiceCard({
+    required String title,
+    required String description,
+    required String actionText,
+    required String badgeText,
+    required IconData icon,
+    required List<Color> gradientColors,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 156,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradientColors,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: gradientColors.first.withValues(alpha: 0.28),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 8),
-
-            // Welcome Section
-            Text(
-              'Welcome back, Sarah!',
-              style: AppTypography.headlineMd.copyWith(fontSize: 22),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.badge_outlined, size: 15, color: AppColors.onSurfaceVariant),
-                const SizedBox(width: 6),
-                Text(
-                  'ID: HZ-20241001',
-                  style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // Balance Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'AVAILABLE BALANCE',
-                        style: AppTypography.labelCaps.copyWith(
-                          color: const Color(0xFF94A3B8),
-                          letterSpacing: 1.2,
-                          fontSize: 10,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.visibility_off_outlined,
-                          color: AppColors.tertiary,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        'NGN',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.tertiary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '1,450,200.00',
-                        style: AppTypography.currencyDisplay.copyWith(
-                          fontSize: 30,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 42,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showFundWalletSheet(context),
-                            icon: const Icon(Icons.add_circle_outline, size: 18),
-                            label: Text(
-                              'Fund Wallet',
-                              style: AppTypography.bodySm.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.secondary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SizedBox(
-                          height: 42,
-                          child: ElevatedButton.icon(
-                            onPressed: () => context.push('/exchange'),
-                            icon: const Icon(Icons.currency_exchange, size: 18),
-                            label: Text(
-                              'Exchange',
-                              style: AppTypography.bodySm.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1E293B),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // Quick Actions — Row 1
+            // Top Row: Icon container + Badge
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _QuickActionItem(
-                  icon: Icons.location_on_outlined,
-                  label: 'Track\nShipment',
-                  onTap: () => context.push('/track'),
-                ),
-                _QuickActionItem(
-                  icon: Icons.swap_horiz_rounded,
-                  label: 'Request\nExchange',
-                  onTap: () => context.push('/exchange'),
-                ),
-                _QuickActionItem(
-                  icon: Icons.shopping_cart_outlined,
-                  label: 'Buy For\nMe',
-                  onTap: () => context.push('/buy-for-me'),
-                ),
-                _QuickActionItem(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'Conso-\nlidate',
-                  onTap: () => context.push('/consolidate'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Quick Actions — Row 2 (Pre-alert)
-            _QuickActionItem(
-              icon: Icons.add_box_outlined,
-              label: 'Pre-\nalert',
-              onTap: () => context.push('/pre-alert'),
-            ),
-
-            const SizedBox(height: 28),
-
-            // Summary Cards
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.inventory_2_outlined,
-                            color: AppColors.primary,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '3 ',
-                                style: AppTypography.headlineMd.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 24,
-                                ),
-                              ),
-                              TextSpan(
-                                text: 'Items',
-                                style: AppTypography.bodyLg.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Ready at Guangzhou Warehouse',
-                          style: AppTypography.bodySm.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.secondary,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.secondary.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.local_shipping_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '2 ',
-                                style: AppTypography.headlineMd.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 24,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              TextSpan(
-                                text: 'Shipments',
-                                style: AppTypography.bodyLg.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Currently in transit',
-                          style: AppTypography.bodySm.copyWith(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 28),
-
-            // Recent Activity
-            SectionHeader(
-              title: 'Recent Activity',
-              actionText: 'VIEW ALL',
-              onActionPressed: () {},
-            ),
-            const SizedBox(height: 16),
-
-            // Shipment Activity Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Shipment header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'SHIPMENT #HMZ-8892',
-                        style: AppTypography.labelCaps.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'IN TRANSIT',
-                          style: AppTypography.labelCaps.copyWith(
-                            color: AppColors.secondary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'MacBook Pro & Accessories',
-                    style: AppTypography.bodyLg.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Timeline
-                  const _TimelineEntry(
-                    title: 'Arrived at Destination Airport',
-                    subtitle: 'Today, 09:42 AM • Murtala Muhammed Int.',
-                    isCompleted: true,
-                    isLast: false,
-                  ),
-                  const _TimelineEntry(
-                    title: 'Customs Clearance',
-                    subtitle: 'Pending',
-                    isCompleted: false,
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showFundWalletSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Header
-            Row(
-              children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 18),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: AppTypography.labelCaps.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 8,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Title
+            Text(
+              title,
+              style: AppTypography.bodyLg.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 2),
+
+            // Description
+            Text(
+              description,
+              style: AppTypography.bodySm.copyWith(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 10,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+
+            // Bottom Action link + Circle Arrow Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  actionText,
+                  style: AppTypography.bodySm.copyWith(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.account_balance,
-                    color: AppColors.secondary,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Fund Your Wallet',
-                        style: AppTypography.headlineMd.copyWith(fontSize: 18),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Transfer to the account below',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 12,
                   ),
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 20),
-
-            // Info notice
+  // ── 4. Live Tracking & Milestones Bar ─────────────────────────────────────
+  Widget _buildLiveTrackingBar(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/live-tracking'),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.15),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Radar Icon
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: AppColors.tertiary.withValues(alpha: 0.08),
+                color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.tertiary.withValues(alpha: 0.2),
+                  color: const Color(0xFF0D9488).withValues(alpha: 0.4),
                 ),
               ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: AppColors.tertiary,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Your wallet will be credited automatically after a successful transfer.',
-                      style: AppTypography.bodySm.copyWith(
-                        color: AppColors.onBackground,
-                        fontSize: 11,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
+              child: const Icon(
+                Icons.radar_rounded,
+                color: Color(0xFF2DD4BF),
+                size: 22,
               ),
             ),
+            const SizedBox(width: 12),
 
-            const SizedBox(height: 20),
-
-            // Account details card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Column(
-                children: [
-                  _FundDetailRow(
-                    label: 'Bank Name',
-                    value: 'Guaranty Trust Bank',
-                    onCopy: () => _copyToClipboard(ctx, 'Guaranty Trust Bank'),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  ),
-                  _FundDetailRow(
-                    label: 'Account Number',
-                    value: '0123456789',
-                    onCopy: () => _copyToClipboard(ctx, '0123456789'),
-                    isMono: true,
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  ),
-                  _FundDetailRow(
-                    label: 'Account Name',
-                    value: 'Hamza RMB Logistics Ltd',
-                    onCopy: () => _copyToClipboard(ctx, 'Hamza RMB Logistics Ltd'),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  ),
-                  _FundDetailRow(
-                    label: 'Reference',
-                    value: 'HZ-20241001',
-                    onCopy: () => _copyToClipboard(ctx, 'HZ-20241001'),
-                    isMono: true,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Copy all button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Clipboard.setData(const ClipboardData(
-                    text:
-                        'Bank: Guaranty Trust Bank\nAccount: 0123456789\nName: Hamza RMB Logistics Ltd\nRef: HZ-20241001',
-                  ));
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content: const Text('All details copied!'),
-                      backgroundColor: AppColors.primary,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.copy_rounded, size: 18),
-                label: Text(
-                  'Copy All Details',
-                  style: AppTypography.bodyMd.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Done button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  'Done',
-                  style: AppTypography.bodyMd.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-
-            SizedBox(height: MediaQuery.of(ctx).viewPadding.bottom),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _copyToClipboard(BuildContext context, String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('"$text" copied!'),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-}
-
-// ── Quick Action Item ──────────────────────────────────────────────────────
-class _QuickActionItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickActionItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 72,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0xFFE2E8F0),
-                  width: 1,
-                ),
-              ),
-              child: Icon(icon, color: AppColors.primary, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: AppTypography.bodySm.copyWith(
-                fontWeight: FontWeight.w500,
-                fontSize: 11,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Timeline Entry ─────────────────────────────────────────────────────────
-class _TimelineEntry extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final bool isCompleted;
-  final bool isLast;
-
-  const _TimelineEntry({
-    required this.title,
-    required this.subtitle,
-    required this.isCompleted,
-    required this.isLast,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline indicator column
-          SizedBox(
-            width: 24,
-            child: Column(
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isCompleted ? AppColors.secondary : const Color(0xFFCBD5E1),
-                    border: isCompleted
-                        ? null
-                        : Border.all(color: const Color(0xFFCBD5E1), width: 2),
-                  ),
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+            // Text
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    'Live Tracking & Milestones',
                     style: AppTypography.bodyMd.copyWith(
-                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
                       fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    subtitle,
+                    'Real-time status from Guangzhou hub to ...',
                     style: AppTypography.bodySm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 11,
+                      color: const Color(0xFF94A3B8),
+                      fontSize: 10,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+
+            // GPS LIVE Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF042F2E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFF0D9488).withValues(alpha: 0.6),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'GPS',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF2DD4BF),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 7,
+                        ),
+                      ),
+                      Text(
+                        'LIVE',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Arrow button
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
-// ── Fund Detail Row ────────────────────────────────────────────────────────
-class _FundDetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final VoidCallback onCopy;
-  final bool isMono;
-
-  const _FundDetailRow({
-    required this.label,
-    required this.value,
-    required this.onCopy,
-    this.isMono = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // ── 5. Logistics Shortcuts ────────────────────────────────────────────────
+  Widget _buildLogisticsShortcuts(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
+        Text(
+          'LOGISTICS SHORTCUTS',
+          style: AppTypography.labelCaps.copyWith(
+            color: const Color(0xFF64748B),
+            fontSize: 10,
+            letterSpacing: 1.0,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildShortcutButton(
+                icon: Icons.store_outlined,
+                label: 'China Hub',
+                onTap: () => context.push('/warehouse-addresses'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildShortcutButton(
+                icon: Icons.calculate_outlined,
+                label: 'Calculator',
+                onTap: () => context.push('/air-freight'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildShortcutButton(
+                icon: Icons.notification_add_outlined,
+                label: 'Pre-Alert',
+                onTap: () => context.push('/pre-alert'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildShortcutButton(
+                icon: Icons.support_agent_outlined,
+                label: 'Help Line',
+                onTap: () => context.push('/support-tickets'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildShortcutButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFEFF6FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: const Color(0xFF0284C7), size: 20),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: AppTypography.bodySm.copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                color: AppColors.onBackground,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 6. Live Shipment Card ─────────────────────────────────────────────────
+  Widget _buildLiveShipmentSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_shipping_outlined,
+                  color: Color(0xFF0D9488),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Live Shipment',
+                  style: AppTypography.bodyLg.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: AppColors.onBackground,
+                  ),
+                ),
+              ],
+            ),
+            GestureDetector(
+              onTap: () => context.push('/track'),
+              child: Text(
+                'VIEW ALL (4)',
+                style: AppTypography.labelCaps.copyWith(
+                  color: const Color(0xFF0284C7),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Route Card
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: AppTypography.bodySm.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 11,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: isMono
-                    ? AppTypography.labelCaps.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        letterSpacing: 0.5,
-                      )
-                    : AppTypography.bodyMd.copyWith(
-                        fontWeight: FontWeight.w600,
+              // Top row tags
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0F2FE),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'AIR-EXPRESS',
+                          style: AppTypography.labelCaps.copyWith(
+                            color: const Color(0xFF0369A1),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 9,
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'HZ-8839-LOS',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF64748B),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'IN FLIGHT',
+                      style: AppTypography.labelCaps.copyWith(
+                        color: const Color(0xFFB45309),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Route Display: Origin -> Airplane/Bar -> Destination
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Origin
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CAN Guangzhou',
+                        style: AppTypography.bodySm.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: AppColors.onBackground,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Departed Nov 20',
+                        style: AppTypography.bodySm.copyWith(
+                          color: const Color(0xFF64748B),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Center Route Bar
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Column(
+                        children: [
+                          Text(
+                            'ETA: 18h',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFF0D9488),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF0D9488),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              Expanded(
+                                child: Container(
+                                  height: 2,
+                                  color: const Color(0xFF0D9488),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.flight,
+                                color: Color(0xFF0D9488),
+                                size: 14,
+                              ),
+                              Expanded(
+                                child: Container(
+                                  height: 2,
+                                  color: const Color(0xFFCBD5E1),
+                                ),
+                              ),
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFCBD5E1),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '2.4 kg · 3 pkgs',
+                            style: AppTypography.bodySm.copyWith(
+                              color: const Color(0xFF94A3B8),
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Destination
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'LOS Ikeja Hub',
+                        style: AppTypography.bodySm.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: AppColors.onBackground,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Expected Nov 22',
+                        style: AppTypography.bodySm.copyWith(
+                          color: const Color(0xFF64748B),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Bottom bar container: "Electronics & Textile Samples" + "TRACK LIVE"
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F7FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.inventory_2_outlined,
+                          color: Color(0xFF0284C7),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Electronics & Textile Samples',
+                          style: AppTypography.bodySm.copyWith(
+                            color: AppColors.onBackground,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () => context.push('/live-tracking'),
+                      child: Text(
+                        'TRACK LIVE',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF0284C7),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        GestureDetector(
-          onTap: onCopy,
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(6),
+      ],
+    );
+  }
+
+  void _showDeliveryDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(
+              Icons.local_shipping_outlined,
+              color: Color(0xFF7C3AED),
             ),
-            child: const Icon(
-              Icons.copy_rounded,
-              size: 16,
-              color: AppColors.onSurfaceVariant,
+            const SizedBox(width: 8),
+            Text(
+              'Local Delivery',
+              style: AppTypography.headlineMd.copyWith(fontSize: 18),
             ),
+          ],
+        ),
+        content: Text(
+          'Doorstep delivery dispatch is available across Lagos and all Nigerian states from our Ikeja Central Hub.',
+          style: AppTypography.bodyMd.copyWith(
+            color: const Color(0xFF64748B),
+            fontSize: 13,
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.push('/support-tickets');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF7C3AED),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Book Delivery'),
+          ),
+        ],
+      ),
     );
   }
 }

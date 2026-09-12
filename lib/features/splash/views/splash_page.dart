@@ -36,10 +36,10 @@ class _SplashPageState extends State<SplashPage>
 
     _controller.forward();
 
-    // Navigate to login after splash animation
+    // Navigate to Home after splash animation
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) {
-        context.go('/login');
+        context.go('/');
       }
     });
   }
