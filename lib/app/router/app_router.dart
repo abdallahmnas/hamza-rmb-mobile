@@ -61,7 +61,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/track',
         name: 'track',
-        builder: (context, state) => const ShipmentsListPage(),
+        builder: (context, state) => const AuthGuard(
+          title: 'Track Your Shipments',
+          subtitle:
+              'Log in to view live parcels, waybills, cargo flight status, and arrival milestones in real-time.',
+          illustrationPath: 'assets/svg/illust_delivery.svg',
+          featureBadge: 'LIVE SHIPMENTS',
+          features: [
+            'Real-time Flight & Sea Cargo Tracking',
+            'Waybill & Customs Clearance Documents',
+            'Instant Push Arrival Notifications',
+          ],
+          child: ShipmentsListPage(),
+        ),
       ),
       GoRoute(
         path: '/live-tracking',

@@ -228,7 +228,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return Column(
       children: [
         SizedBox(
-          height: 146,
+          height: 168,
           child: PageView(
             controller: _bannerPageController,
             onPageChanged: (index) {
@@ -317,8 +317,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                      horizontal: 9,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2DD4BF),
@@ -329,7 +329,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       style: AppTypography.labelCaps.copyWith(
                         color: const Color(0xFF042F2E),
                         fontWeight: FontWeight.w800,
-                        fontSize: 8,
+                        fontSize: 9.5,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -337,7 +337,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   const Icon(
                     Icons.flight_takeoff_rounded,
                     color: Color(0xFF2DD4BF),
-                    size: 18,
+                    size: 20,
                   ),
                 ],
               ),
@@ -349,18 +349,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 style: AppTypography.headlineMd.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  fontSize: 16,
+                  fontSize: 18.5,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
 
               // Subtitle
               Text(
                 'Daily departures Guangzhou (CAN) to Lagos (LOS).\nFast-track clearance included.',
                 style: AppTypography.bodySm.copyWith(
                   color: const Color(0xFF94A3B8),
-                  fontSize: 10,
-                  height: 1.3,
+                  fontSize: 12,
+                  height: 1.35,
                 ),
               ),
               const Spacer(),
@@ -376,14 +376,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       style: AppTypography.bodySm.copyWith(
                         color: const Color(0xFF2DD4BF),
                         fontWeight: FontWeight.w700,
-                        fontSize: 11,
+                        fontSize: 13,
                       ),
                     ),
                     const SizedBox(width: 4),
                     const Icon(
                       Icons.arrow_forward_rounded,
                       color: Color(0xFF2DD4BF),
-                      size: 13,
+                      size: 15,
                     ),
                   ],
                 ),
@@ -432,8 +432,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                      horizontal: 9,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF38BDF8),
@@ -444,7 +444,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       style: AppTypography.labelCaps.copyWith(
                         color: const Color(0xFF082F49),
                         fontWeight: FontWeight.w800,
-                        fontSize: 8,
+                        fontSize: 9.5,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -452,7 +452,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   const Icon(
                     Icons.directions_boat_rounded,
                     color: Color(0xFF38BDF8),
-                    size: 18,
+                    size: 20,
                   ),
                 ],
               ),
@@ -462,16 +462,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 style: AppTypography.headlineMd.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  fontSize: 16,
+                  fontSize: 18.5,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Text(
                 'Container loads & groupage straight to Apapa & Tincan.\nCustoms clearance included.',
                 style: AppTypography.bodySm.copyWith(
                   color: const Color(0xFF94A3B8),
-                  fontSize: 10,
-                  height: 1.3,
+                  fontSize: 12,
+                  height: 1.35,
                 ),
               ),
               const Spacer(),
@@ -485,14 +485,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       style: AppTypography.bodySm.copyWith(
                         color: const Color(0xFF38BDF8),
                         fontWeight: FontWeight.w700,
-                        fontSize: 11,
+                        fontSize: 13,
                       ),
                     ),
                     const SizedBox(width: 4),
                     const Icon(
                       Icons.arrow_forward_rounded,
                       color: Color(0xFF38BDF8),
-                      size: 13,
+                      size: 15,
                     ),
                   ],
                 ),
@@ -528,7 +528,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   'All Services',
                   style: AppTypography.bodyLg.copyWith(
                     fontWeight: FontWeight.w900,
-                    fontSize: 17,
+                    fontSize: 18,
                     color: AppColors.onBackground,
                   ),
                 ),
@@ -661,7 +661,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 156,
+        height: 172,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -696,8 +696,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 3,
+                    horizontal: 8,
+                    vertical: 3.5,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
@@ -708,7 +708,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     style: AppTypography.labelCaps.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
-                      fontSize: 8,
+                      fontSize: 9,
                       letterSpacing: 0.3,
                     ),
                   ),
@@ -723,18 +723,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               style: AppTypography.bodyLg.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
-                fontSize: 14,
+                fontSize: 16.5,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 4),
 
             // Description
             Text(
               description,
               style: AppTypography.bodySm.copyWith(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 10,
-                height: 1.2,
+                color: Colors.white.withValues(alpha: 0.85),
+                fontSize: 12,
+                height: 1.3,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -748,9 +748,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 Text(
                   actionText,
                   style: AppTypography.bodySm.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
+                    color: Colors.white.withValues(alpha: 0.95),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
                   ),
                 ),
                 Container(
@@ -763,7 +763,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   child: const Icon(
                     Icons.arrow_forward_rounded,
                     color: Colors.white,
-                    size: 12,
+                    size: 13,
                   ),
                 ),
               ],

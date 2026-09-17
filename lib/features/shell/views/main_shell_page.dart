@@ -18,12 +18,48 @@ class MainShellPage extends StatefulWidget {
 class _MainShellPageState extends State<MainShellPage> {
   int _currentIndex = 0;
 
-  // Dashboard and Shipments are public; Wallet and Profile are protected
+  // Dashboard is public; Shipments, Wallet, and Profile are protected by AuthGuard
   final List<Widget> _pages = const [
     DashboardPage(),
-    ShipmentsListPage(),
-    AuthGuard(child: WalletPage()),
-    AuthGuard(child: ProfilePage()),
+    AuthGuard(
+      title: 'Track Your Shipments',
+      subtitle:
+          'Log in to view live parcels, waybills, cargo flight status, and arrival milestones in real-time.',
+      illustrationPath: 'assets/svg/illust_delivery.svg',
+      featureBadge: 'LIVE SHIPMENTS',
+      features: [
+        'Real-time Flight & Sea Cargo Tracking',
+        'Waybill & Customs Clearance Documents',
+        'Instant Push Arrival Notifications',
+      ],
+      child: ShipmentsListPage(),
+    ),
+    AuthGuard(
+      title: 'Access Your Wallet',
+      subtitle:
+          'Log in to check your RMB & NGN balances, view transaction statements, and swap currencies instantly.',
+      illustrationPath: 'assets/svg/illust_exchange.svg',
+      featureBadge: 'MULTI-CURRENCY WALLET',
+      features: [
+        'Live RMB & NGN Balances',
+        'Instant Currency Swaps & Alipay Payouts',
+        'Transparent Rates with Zero Hidden Fees',
+      ],
+      child: WalletPage(),
+    ),
+    AuthGuard(
+      title: 'Account & Settings',
+      subtitle:
+          'Log in to manage your profile, saved warehouse addresses, and security preferences.',
+      illustrationPath: 'assets/svg/illust_procurement.svg',
+      featureBadge: 'MY ACCOUNT',
+      features: [
+        'China & Global Warehouse Addresses',
+        '2FA & Security Controls',
+        'Dedicated Priority Support',
+      ],
+      child: ProfilePage(),
+    ),
   ];
 
   @override

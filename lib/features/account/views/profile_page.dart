@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/auth/auth_service.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authServiceProvider);
+    final displayName = authState.displayName ?? 'Hamza Ahmed';
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
@@ -82,7 +86,7 @@ class ProfilePage extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   Text(
-                    'Hamza Ahmed',
+                    displayName,
                     style: AppTypography.headlineMd.copyWith(fontSize: 20),
                   ),
 
@@ -252,15 +256,16 @@ class ProfilePage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.logout, size: 18),
+                  onPressed: () => _showLogoutConfirmation(context, ref),
+                  icon: const Icon(Icons.logout_rounded, size: 20),
                   label: Text(
                     'Log Out',
                     style: AppTypography.bodyMd.copyWith(
                       color: AppColors.error,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -268,27 +273,89 @@ class ProfilePage extends StatelessWidget {
                     foregroundColor: AppColors.error,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 24), // Added extra space below the button
 
             // Version footer
             Text(
               'Hamza RMB Mobile v1.4.2',
               style: AppTypography.bodySm.copyWith(
                 color: AppColors.onSurfaceVariant,
-                fontSize: 11,
+                fontSize: 12,
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 90), // Generous padding to clear shell bottom navigation
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLogoutConfirmation(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Log Out',
+          style: AppTypography.headlineMd.copyWith(fontSize: 20),
+        ),
+        content: Text(
+          'Are you sure you want to log out of your HamzaRMB account? You will need to sign in again to view your shipments and wallet.',
+          style: AppTypography.bodyMd.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: AppTypography.bodyMd.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(authServiceProvider.notifier).logout();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Logged out successfully'),
+                    backgroundColor: AppColors.primary,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Log Out',
+              style: AppTypography.bodyMd.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
