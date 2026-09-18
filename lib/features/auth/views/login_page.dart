@@ -62,10 +62,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-                Text(
-                  'HamzaRMB',
-                  style: AppTypography.headlineLg,
-                  textAlign: TextAlign.center,
+                Center(
+                  child: Image.asset(
+                    'assets/images/app_logo.png',
+                    height: 80,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
