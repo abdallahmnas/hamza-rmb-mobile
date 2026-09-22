@@ -28,6 +28,10 @@ import '../../features/account/views/new_ticket_page.dart';
 import '../../features/account/views/settings_page.dart';
 import '../../features/notifications/views/notifications_page.dart';
 
+import '../../features/shipments/data/models/package_model.dart';
+import '../../features/wallet/data/models/transaction_model.dart';
+import '../../features/account/data/models/ticket_model.dart';
+
 /// Provider for the GoRouter — uses Riverpod so it can read onboarding state.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final storage = ref.watch(localStorageProvider);
@@ -136,14 +140,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/consolidation-review',
         name: 'consolidationReview',
-        builder: (context, state) =>
-            const AuthGuard(child: ConsolidationReviewPage()),
+        builder: (context, state) {
+          final packages = state.extra as List<PackageModel>? ?? [];
+          return AuthGuard(
+            child: ConsolidationReviewPage(selectedPackages: packages),
+          );
+        },
       ),
       GoRoute(
         path: '/transaction-details',
         name: 'transactionDetails',
         builder: (context, state) =>
-            const AuthGuard(child: TransactionDetailsPage()),
+            AuthGuard(child: TransactionDetailsPage(transaction: state.extra as TransactionModel?)),
       ),
       GoRoute(
         path: '/warehouse-addresses',
@@ -172,7 +180,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ticket-details',
         name: 'ticketDetails',
         builder: (context, state) =>
-            const AuthGuard(child: TicketDetailsPage()),
+            AuthGuard(child: TicketDetailsPage(ticket: state.extra as TicketModel?)),
       ),
       GoRoute(
         path: '/new-ticket',

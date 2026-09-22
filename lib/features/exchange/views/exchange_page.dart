@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../models/exchange_review_data.dart';
 
-class ExchangePage extends StatefulWidget {
+class ExchangePage extends ConsumerStatefulWidget {
   const ExchangePage({super.key});
 
   @override
-  State<ExchangePage> createState() => _ExchangePageState();
+  ConsumerState<ExchangePage> createState() => _ExchangePageState();
 }
 
-class _ExchangePageState extends State<ExchangePage> {
-  final _sendController = TextEditingController(text: '0');
-  final _receiveController = TextEditingController(text: '5,400.00');
+class _ExchangePageState extends ConsumerState<ExchangePage> {
+  final _sendController = TextEditingController(text: '100,000');
+  final _receiveController = TextEditingController(text: '437.64');
 
-  // Mock exchange rates
-  static const double _ngnToCny = 0.0054;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _recalculate();
+    });
+  }
 
   @override
   void dispose() {
@@ -26,20 +33,40 @@ class _ExchangePageState extends State<ExchangePage> {
     super.dispose();
   }
 
+  double _getEffectiveRate() {
+    final meta = ref.read(systemMetadataProvider);
+    final r = meta.exchangeRate?.rate ?? 228.50;
+    return r > 0 ? r : 228.50;
+  }
+
+  void _recalculate() {
+    final rate = _getEffectiveRate();
+    final cleaned = _sendController.text.replaceAll(',', '');
+    final amountNgn = double.tryParse(cleaned) ?? 0;
+    if (rate > 0) {
+      final cny = amountNgn / rate;
+      _receiveController.text = cny.toStringAsFixed(2);
+    }
+  }
+
   void _onSendAmountChanged(String value) {
+    final rate = _getEffectiveRate();
     final cleaned = value.replaceAll(',', '');
-    final amount = double.tryParse(cleaned) ?? 0;
-    final converted = (amount * _ngnToCny).toStringAsFixed(2);
-    _receiveController.text = converted;
+    final amountNgn = double.tryParse(cleaned) ?? 0;
+    if (rate > 0) {
+      final cny = amountNgn / rate;
+      _receiveController.text = cny.toStringAsFixed(2);
+    }
   }
 
   void _navigateToReview() {
+    final rate = _getEffectiveRate();
     final data = ExchangeReviewData(
       sendAmount: _sendController.text,
       receiveAmount: _receiveController.text,
       sendCurrency: 'NGN',
       receiveCurrency: 'CNY',
-      exchangeRate: '1 NGN = $_ngnToCny CNY',
+      exchangeRate: '1 CNY = ₦${rate.toStringAsFixed(2)} NGN',
       selectedPlatform: 'alipay',
       beneficiaryName: '',
       accountId: '',
@@ -49,6 +76,10 @@ class _ExchangePageState extends State<ExchangePage> {
 
   @override
   Widget build(BuildContext context) {
+    final meta = ref.watch(systemMetadataProvider);
+    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final liveRateStr = '₦${liveRate.toStringAsFixed(2)}';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -105,36 +136,43 @@ class _ExchangePageState extends State<ExchangePage> {
             const SizedBox(height: 16),
 
             // ── Rate Cards ─────────────────────────────────────────────
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   Expanded(
                     child: _RateCard(
-                      fromCurrency: 'NGN',
-                      toCurrency: 'CNY',
-                      rate: '¥0.0054',
+                      fromCurrency: 'CNY',
+                      toCurrency: 'NGN',
+                      rate: liveRateStr,
                       change: '+0.12%',
                       changePeriod: '24h',
                       isPositive: true,
-                      gradientColors: [Color(0xFF10B981), Color(0xFF059669)],
+                      gradientColors: const [
+                        Color(0xFF10B981),
+                        Color(0xFF059669),
+                      ],
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
+                  const SizedBox(width: 12),
+                  const Expanded(
                     child: _RateCard(
-                      fromCurrency: 'NGN',
-                      toCurrency: 'USD',
-                      rate: '\$0.00072',
+                      fromCurrency: 'USD',
+                      toCurrency: 'NGN',
+                      rate: '₦1,550.00',
                       change: '-0.05%',
                       changePeriod: '24h',
                       isPositive: false,
-                      gradientColors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                      gradientColors: [
+                        Color(0xFF3B82F6),
+                        Color(0xFF2563EB),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
+
 
             const SizedBox(height: 24),
 

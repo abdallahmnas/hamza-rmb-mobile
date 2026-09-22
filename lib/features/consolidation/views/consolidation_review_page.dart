@@ -1,21 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../shipments/data/models/package_model.dart';
+import '../../shipments/presentation/providers/shipments_provider.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 
-class ConsolidationReviewPage extends StatefulWidget {
-  const ConsolidationReviewPage({super.key});
+class ConsolidationReviewPage extends ConsumerStatefulWidget {
+  final List<PackageModel> selectedPackages;
+
+  const ConsolidationReviewPage({
+    super.key,
+    this.selectedPackages = const [],
+  });
 
   @override
-  State<ConsolidationReviewPage> createState() =>
+  ConsumerState<ConsolidationReviewPage> createState() =>
       _ConsolidationReviewPageState();
 }
 
-class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
+class _ConsolidationReviewPageState
+    extends ConsumerState<ConsolidationReviewPage> {
   String _shippingMethod = 'air';
   String _paymentMethod = 'wallet';
+  bool _isSubmitting = false;
+
+  final _currencyFormat = NumberFormat('#,##0', 'en_US');
 
   @override
   Widget build(BuildContext context) {
+    final metaState = ref.watch(systemMetadataProvider);
+    final rate = metaState.exchangeRate.rate;
+
+    final totalWeightKg = widget.selectedPackages.fold<double>(
+      0.0,
+      (sum, p) => sum + (p.weightKg > 0 ? p.weightKg : 0.5),
+    );
+
+    final totalDeclaredUsd = widget.selectedPackages.fold<double>(
+      0.0,
+      (sum, p) => sum + p.declaredValueUsd,
+    );
+
+    // Approximate fees
+    final ratePerKgUsd = _shippingMethod == 'air' ? 8.5 : 2.5;
+    final shippingFeeUsd = totalWeightKg * ratePerKgUsd;
+    final shippingFeeNgn = shippingFeeUsd * rate;
+    const consolidationFeeNgn = 5000.0;
+    final grandTotalNgn = shippingFeeNgn + consolidationFeeNgn;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -24,58 +59,14 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
         scrolledUnderElevation: 0,
         titleSpacing: 0,
         leadingWidth: 48,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Center(
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Center(
-                child: Text(
-                  'H',
-                  style: AppTypography.bodySm.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.onBackground),
+          onPressed: () => context.pop(),
         ),
         title: Text(
-          'Hamza RMB',
+          'Consolidation Review',
           style: AppTypography.headlineMd.copyWith(fontSize: 16),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.onBackground,
-              size: 24,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () {},
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.primary,
-                child: Icon(
-                  Icons.person_outlined,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -91,7 +82,7 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Consolidation Review',
+                        'Review Details',
                         style: AppTypography.headlineMd.copyWith(fontSize: 18),
                       ),
                       Text(
@@ -106,7 +97,7 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Finalize shipping details',
+                    'Finalize shipping and payment method',
                     style: AppTypography.bodySm.copyWith(
                       color: AppColors.onSurfaceVariant,
                     ),
@@ -191,7 +182,7 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                     child: _PaymentMethodCard(
                       icon: Icons.account_balance_wallet_outlined,
                       title: 'Pay Now',
-                      subtitle: 'Wallet / Bank',
+                      subtitle: 'Wallet Balance',
                       isSelected: _paymentMethod == 'wallet',
                       onTap: () => setState(() => _paymentMethod = 'wallet'),
                     ),
@@ -232,19 +223,31 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const _CostRow(
-                      label: 'Item Total (3 Packages)',
-                      value: 'NGN 1,250,000',
+                    _CostRow(
+                      label: 'Selected Packages',
+                      value: '${widget.selectedPackages.length} Packages',
                     ),
                     const SizedBox(height: 10),
-                    const _CostRow(
-                      label: 'Shipping Fee (Air Freight)',
-                      value: 'NGN 45,000',
+                    _CostRow(
+                      label: 'Total Weight',
+                      value: '${totalWeightKg.toStringAsFixed(1)} KG',
+                    ),
+                    if (totalDeclaredUsd > 0) ...[
+                      const SizedBox(height: 10),
+                      _CostRow(
+                        label: 'Declared Value',
+                        value: '\$${totalDeclaredUsd.toStringAsFixed(0)} USD',
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    _CostRow(
+                      label: 'Est. Freight Fee ($_shippingMethod.toUpperCase())',
+                      value: '₦${_currencyFormat.format(shippingFeeNgn.round())}',
                     ),
                     const SizedBox(height: 10),
                     const _CostRow(
                       label: 'Consolidation Service Fee',
-                      value: 'NGN 5,000',
+                      value: '₦5,000',
                     ),
                     const SizedBox(height: 14),
                     const Divider(height: 1, color: Color(0xFFE2E8F0)),
@@ -253,13 +256,13 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Grand Total',
+                          'Estimated Total',
                           style: AppTypography.bodyMd.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
-                          '₦1,300,000',
+                          '₦${_currencyFormat.format(grandTotalNgn.round())}',
                           style: AppTypography.headlineMd.copyWith(
                             color: AppColors.secondary,
                             fontSize: 20,
@@ -297,29 +300,39 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _isSubmitting ? null : _handleConsolidate,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFCBD5E1),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Confirm & Consolidate',
-                        style: AppTypography.bodyLg.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Confirm & Consolidate',
+                              style: AppTypography.bodyLg.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward, size: 20),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward, size: 20),
-                    ],
-                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -346,6 +359,42 @@ class _ConsolidationReviewPageState extends State<ConsolidationReviewPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleConsolidate() async {
+    setState(() => _isSubmitting = true);
+
+    final packageIds = widget.selectedPackages.map((p) => p.id).toList();
+    final success =
+        await ref.read(shipmentsProvider.notifier).createConsolidation(
+              packageIds: packageIds,
+              shippingMethod: _shippingMethod,
+              destinationWarehouse: 'Lagos Warehouse',
+              paymentMethod: _paymentMethod,
+            );
+
+    setState(() => _isSubmitting = false);
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Consolidation request created successfully!'),
+          backgroundColor: AppColors.secondary,
+        ),
+      );
+      context.go('/track');
+    } else {
+      final error = ref.read(shipmentsProvider).error ??
+          'Failed to create consolidation request.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
 
@@ -535,3 +584,4 @@ class _CostRow extends StatelessWidget {
     );
   }
 }
+

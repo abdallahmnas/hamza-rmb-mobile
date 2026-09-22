@@ -6,6 +6,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import 'sign_up_page.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -28,15 +29,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _handleLogin() async {
+    if (_isLoading) return;
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
 
-      // Short delay for UX feedback
-      await Future.delayed(const Duration(milliseconds: 500));
-
       final authService = ref.read(authServiceProvider.notifier);
       final success = await authService.login(
-        _emailController.text,
+        _emailController.text.trim(),
         _passwordController.text,
       );
 
@@ -44,6 +43,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         setState(() => _isLoading = false);
         if (success) {
           context.go('/');
+        } else {
+          final errorMessage = ref.read(authServiceProvider).errorMessage ??
+              'Login failed. Please verify your credentials.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
       }
     }
@@ -84,7 +93,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   hintText: 'e.g. hello@example.com',
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.trim().isEmpty) {
                       return 'Please enter your email';
                     }
                     return null;
@@ -109,7 +118,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      // Navigate to forgot password Page
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please contact support or reset password via email.'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
                     },
                     child: Text(
                       'Forgot Password?',
@@ -124,17 +138,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 32),
                 AppButton.primary(
                   text: 'Log In',
-                  onPressed: _handleLogin,
+                  onPressed: _isLoading ? null : _handleLogin,
                   isLoading: _isLoading,
-                ),
-
-                const SizedBox(height: 24),
-                // Biometric Login (FaceID/Fingerprint)
-                AppButton.secondary(
-                  text: 'Log in with Biometrics',
-                  onPressed: () {
-                    // Trigger biometrics
-                  },
                 ),
 
                 const SizedBox(height: 48),
@@ -149,7 +154,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     TextButton(
                       onPressed: () {
-                        // Navigate to sign up Page
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const SignUpPage(),
+                          ),
+                        );
                       },
                       child: Text(
                         'Sign Up',
@@ -169,3 +178,4 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 }
+

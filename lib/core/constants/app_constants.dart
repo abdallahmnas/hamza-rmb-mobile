@@ -1,7 +1,7 @@
 class AppConstants {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://jsonplaceholder.typicode.com',
+    defaultValue: 'https://hamza-rmb.onrender.com/api/v1',
   );
 
   static const String appEnv = String.fromEnvironment(

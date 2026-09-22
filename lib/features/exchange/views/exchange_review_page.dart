@@ -1,25 +1,30 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
 import '../models/exchange_review_data.dart';
+import '../presentation/providers/exchange_provider.dart';
 
-class ExchangeReviewPage extends StatefulWidget {
+class ExchangeReviewPage extends ConsumerStatefulWidget {
   final ExchangeReviewData reviewData;
 
   const ExchangeReviewPage({super.key, required this.reviewData});
 
   @override
-  State<ExchangeReviewPage> createState() => _ExchangeReviewPageState();
+  ConsumerState<ExchangeReviewPage> createState() => _ExchangeReviewPageState();
 }
 
-class _ExchangeReviewPageState extends State<ExchangeReviewPage> {
+class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
   late String _selectedPlatform;
   late TextEditingController _beneficiaryController;
   late TextEditingController _accountIdController;
   File? _receiptImage;
   final ImagePicker _imagePicker = ImagePicker();
+  bool _isSubmitting = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,7 +55,6 @@ class _ExchangeReviewPageState extends State<ExchangeReviewPage> {
       );
 
       if (pickedFile != null) {
-        // Validate file extension
         final ext = pickedFile.path.split('.').last.toLowerCase();
         final allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
 
@@ -102,29 +106,66 @@ class _ExchangeReviewPageState extends State<ExchangeReviewPage> {
     });
   }
 
-  void _submitRequest() {
-    // Collect final data including the receipt image
-    final finalData = widget.reviewData.copyWith(
-      selectedPlatform: _selectedPlatform,
-      beneficiaryName: _beneficiaryController.text,
-      accountId: _accountIdController.text,
-      receiptImage: _receiptImage,
-    );
-    // In production, this would submit to the API
-    debugPrint('Submitting exchange request: $finalData');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Exchange request submitted successfully!',
-          style: AppTypography.bodySm.copyWith(color: Colors.white),
+  Future<void> _submitRequest() async {
+    final accountId = _accountIdController.text.trim();
+    if (accountId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter beneficiary account ID or phone number'),
+          backgroundColor: AppColors.error,
         ),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final sendCleaned =
+          widget.reviewData.sendAmount.replaceAll(',', '').trim();
+      final receiveCleaned =
+          widget.reviewData.receiveAmount.replaceAll(',', '').trim();
+
+      final fromAmount = double.tryParse(sendCleaned) ?? 0.0;
+      final toAmount = double.tryParse(receiveCleaned) ?? 0.0;
+
+      await ref.read(exchangeProvider.notifier).createExchangeRequest(
+            fromCurrency: widget.reviewData.sendCurrency,
+            toCurrency: widget.reviewData.receiveCurrency,
+            fromAmount: fromAmount,
+            toAmount: toAmount,
+            receivingPlatform: _selectedPlatform,
+            recipientDetails: {
+              'account_id': accountId,
+              'beneficiary_name': _beneficiaryController.text.trim(),
+            },
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Exchange request submitted successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        context.go('/exchange');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
+
 
   String _platformLabel(String platform) {
     switch (platform) {
@@ -598,7 +639,7 @@ class _ExchangeReviewPageState extends State<ExchangeReviewPage> {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: _submitRequest,
+                onPressed: _isSubmitting ? null : _submitRequest,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
@@ -607,21 +648,30 @@ class _ExchangeReviewPageState extends State<ExchangeReviewPage> {
                     borderRadius: BorderRadius.circular(26),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Submit Request',
-                      style: AppTypography.bodyLg.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        fontSize: 15,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Submit Request',
+                            style: AppTypography.bodyLg.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.arrow_forward, size: 18),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward, size: 18),
-                  ],
-                ),
               ),
             ),
           ),

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../home/data/models/banner_model.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -25,43 +27,55 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authServiceProvider);
+    final metadataState = ref.watch(systemMetadataProvider);
     final isLoggedIn = authState.isLoggedIn;
-    final displayName = authState.displayName ?? 'Sarah Okonjo';
+    final displayName = authState.user?.fullName.isNotEmpty == true
+        ? authState.user!.fullName
+        : (authState.displayName ?? 'Guest User');
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Top Header Profile Bar ───────────────────────────────
-                _buildTopHeaderBar(context, isLoggedIn, displayName),
-                const SizedBox(height: 16),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await Future.wait([
+              ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true),
+              if (isLoggedIn) ref.read(authServiceProvider.notifier).refreshProfile(),
+            ]);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Top Header Profile Bar ───────────────────────────────
+                  _buildTopHeaderBar(context, isLoggedIn, displayName, metadataState),
+                  const SizedBox(height: 16),
 
-                // ── Top Promo Carousel Banner Card ───────────────────────
-                _buildPromoCarouselBanner(context),
-                const SizedBox(height: 20),
+                  // ── Top Promo Carousel Banner Card ───────────────────────
+                  _buildPromoCarouselBanner(context, metadataState),
+                  const SizedBox(height: 20),
 
-                // ── "● All Services" Grid Section ────────────────────────
-                _buildAllServicesSection(context),
-                const SizedBox(height: 16),
+                  // ── "● All Services" Grid Section ────────────────────────
+                  _buildAllServicesSection(context, metadataState),
+                  const SizedBox(height: 16),
 
-                // ── Live Tracking & Milestones Bar ────────────────────────
-                _buildLiveTrackingBar(context),
-                const SizedBox(height: 24),
+                  // ── Live Tracking & Milestones Bar ────────────────────────
+                  _buildLiveTrackingBar(context),
+                  const SizedBox(height: 24),
 
-                // ── Logistics Shortcuts ───────────────────────────────────
-                _buildLogisticsShortcuts(context),
-                const SizedBox(height: 24),
+                  // ── Logistics Shortcuts ───────────────────────────────────
+                  _buildLogisticsShortcuts(context),
+                  const SizedBox(height: 24),
 
-                // ── Live Shipment Card ────────────────────────────────────
-                _buildLiveShipmentSection(context),
-                const SizedBox(height: 90), // Bottom padding for shell nav bar
-              ],
+                  // ── Live Shipment Card ────────────────────────────────────
+                  _buildLiveShipmentSection(context),
+                  const SizedBox(height: 90), // Bottom padding for shell nav bar
+                ],
+              ),
             ),
           ),
         ),
@@ -74,7 +88,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     BuildContext context,
     bool isLoggedIn,
     String displayName,
+    SystemMetadataState metadataState,
   ) {
+    final initials = displayName.trim().isNotEmpty
+        ? displayName
+            .trim()
+            .split(' ')
+            .map((e) => e.isNotEmpty ? e[0].toUpperCase() : '')
+            .take(2)
+            .join()
+        : 'HZ';
+
+    final cnyRate = metadataState.exchangeRate.platformRate > 0
+        ? metadataState.exchangeRate.platformRate
+        : metadataState.settings.cnyExchangeRate;
+
     return Row(
       children: [
         // Avatar with status indicator
@@ -90,11 +118,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
               child: Center(
                 child: Text(
-                  'SO',
+                  initials.isNotEmpty ? initials : 'HZ',
                   style: AppTypography.bodyLg.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
-                    fontSize: 16,
+                    fontSize: 15,
                   ),
                 ),
               ),
@@ -106,7 +134,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 width: 12,
                 height: 12,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981),
+                  color: isLoggedIn ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xFFF1F5F9), width: 2),
                 ),
@@ -125,7 +153,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 children: [
                   Flexible(
                     child: Text(
-                      isLoggedIn ? displayName : 'Sarah Oko...',
+                      isLoggedIn ? displayName : 'Welcome, Guest',
                       style: AppTypography.bodyLg.copyWith(
                         fontWeight: FontWeight.w800,
                         fontSize: 16,
@@ -146,7 +174,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'VIP',
+                      isLoggedIn ? 'MEMBER' : 'VISITOR',
                       style: AppTypography.labelCaps.copyWith(
                         color: const Color(0xFF78350F),
                         fontWeight: FontWeight.w900,
@@ -166,7 +194,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ),
                   const SizedBox(width: 3),
                   Text(
-                    'Lagos, NG',
+                    'Nigeria Hub',
                     style: AppTypography.bodySm.copyWith(
                       color: const Color(0xFF64748B),
                       fontSize: 11,
@@ -202,7 +230,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  '¥1 = ₦228.5',
+                  '¥1 = ₦${cnyRate.toStringAsFixed(cnyRate.truncateToDouble() == cnyRate ? 0 : 1)}',
                   style: AppTypography.bodySm.copyWith(
                     color: const Color(0xFF0369A1),
                     fontWeight: FontWeight.w700,
@@ -224,61 +252,62 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // ── 2. Top Promo Carousel Banner Card ─────────────────────────────────────
-  Widget _buildPromoCarouselBanner(BuildContext context) {
+  Widget _buildPromoCarouselBanner(BuildContext context, SystemMetadataState metadataState) {
+    final banners = metadataState.banners;
+    final bannerCount = banners.isNotEmpty ? banners.length : 2;
+
     return Column(
       children: [
         SizedBox(
           height: 168,
-          child: PageView(
+          child: PageView.builder(
             controller: _bannerPageController,
+            itemCount: bannerCount,
             onPageChanged: (index) {
               setState(() {
                 _currentBannerIndex = index;
               });
             },
-            children: [
-              // Slide 1: Air Express
-              _buildAirExpressBannerSlide(context),
-              // Slide 2: Sea Freight
-              _buildSeaFreightBannerSlide(context),
-            ],
+            itemBuilder: (context, index) {
+              if (banners.isNotEmpty) {
+                final banner = banners[index];
+                return _buildDynamicBannerSlide(context, banner, metadataState);
+              }
+              return index == 0
+                  ? _buildAirExpressBannerSlide(context, metadataState)
+                  : _buildSeaFreightBannerSlide(context, metadataState);
+            },
           ),
         ),
         const SizedBox(height: 10),
         // Dots indicator
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
+          children: List.generate(
+            bannerCount,
+            (index) => AnimatedContainer(
               duration: const Duration(milliseconds: 250),
-              width: _currentBannerIndex == 0 ? 20 : 6,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: _currentBannerIndex == index ? 20 : 6,
               height: 6,
               decoration: BoxDecoration(
-                color: _currentBannerIndex == 0
+                color: _currentBannerIndex == index
                     ? const Color(0xFF0D9488)
                     : const Color(0xFFCBD5E1),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
-            const SizedBox(width: 6),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: _currentBannerIndex == 1 ? 20 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: _currentBannerIndex == 1
-                    ? const Color(0xFF0D9488)
-                    : const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildAirExpressBannerSlide(BuildContext context) {
+  Widget _buildDynamicBannerSlide(
+    BuildContext context,
+    BannerModel banner,
+    SystemMetadataState metadataState,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -295,7 +324,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ),
       child: Stack(
         children: [
-          // Background ambient circular gradient
           Positioned(
             right: -20,
             bottom: -30,
@@ -311,7 +339,128 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top tag & flight icon
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2DD4BF),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'PROMO SPECIAL',
+                      style: AppTypography.labelCaps.copyWith(
+                        color: const Color(0xFF042F2E),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 9.5,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.campaign_rounded,
+                    color: Color(0xFF2DD4BF),
+                    size: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                banner.title,
+                style: AppTypography.headlineMd.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                banner.subtitle,
+                style: AppTypography.bodySm.copyWith(
+                  color: const Color(0xFF94A3B8),
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  if (banner.targetScreen == 'air_freight') {
+                    context.push('/air-freight');
+                  } else if (banner.targetScreen == 'sea_freight') {
+                    context.push('/sea-freight');
+                  } else {
+                    context.push('/air-freight');
+                  }
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Explore now',
+                      style: AppTypography.bodySm.copyWith(
+                        color: const Color(0xFF2DD4BF),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Color(0xFF2DD4BF),
+                      size: 15,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAirExpressBannerSlide(BuildContext context, SystemMetadataState metadataState) {
+    final rateKg = metadataState.settings.airFreightRatePerKg;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0F14),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -20,
+            bottom: -30,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF0D9488).withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -342,8 +491,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ],
               ),
               const SizedBox(height: 10),
-
-              // Title
               Text(
                 'Air Express: 3-5 Days Direct',
                 style: AppTypography.headlineMd.copyWith(
@@ -353,10 +500,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               ),
               const SizedBox(height: 5),
-
-              // Subtitle
               Text(
-                'Daily departures Guangzhou (CAN) to Lagos (LOS).\nFast-track clearance included.',
+                'Guangzhou (CAN) to Lagos (LOS) @ ₦${rateKg.toStringAsFixed(0)}/kg.\nCustoms clearance included.',
                 style: AppTypography.bodySm.copyWith(
                   color: const Color(0xFF94A3B8),
                   fontSize: 12,
@@ -364,8 +509,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               ),
               const Spacer(),
-
-              // Action Link
               GestureDetector(
                 onTap: () => context.push('/air-freight'),
                 child: Row(
@@ -395,7 +538,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  Widget _buildSeaFreightBannerSlide(BuildContext context) {
+  Widget _buildSeaFreightBannerSlide(BuildContext context, SystemMetadataState metadataState) {
+    final seaRate = metadataState.settings.seaFreightRatePerCbm;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -458,7 +602,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Sea Cargo: From \$190 / CBM',
+                'Sea Cargo: ₦${seaRate.toStringAsFixed(0)} / CBM',
                 style: AppTypography.headlineMd.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
@@ -505,11 +649,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   // ── 3. "● All Services" 6-Card Grid ───────────────────────────────────────
-  Widget _buildAllServicesSection(BuildContext context) {
+  Widget _buildAllServicesSection(BuildContext context, SystemMetadataState metadataState) {
+    final settings = metadataState.settings;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -565,7 +709,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 title: 'Air Freight',
                 description: 'Direct air cargo dispatch from China hubs to Lagos.',
                 actionText: 'Book flight',
-                badgeText: '3-5 DAYS',
+                badgeText: '₦${settings.airFreightRatePerKg.toStringAsFixed(0)}/KG',
                 icon: Icons.flight_takeoff_rounded,
                 gradientColors: const [Color(0xFF2563EB), Color(0xFF1D4ED8)],
                 onTap: () => context.push('/air-freight'),
@@ -575,9 +719,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Expanded(
               child: _buildServiceCard(
                 title: 'Sea Freight',
-                description: 'Large volume CBM, container loads &...',
+                description: 'Large volume CBM, container loads & groupage.',
                 actionText: 'Get quote',
-                badgeText: 'FROM \$190',
+                badgeText: '₦${settings.seaFreightRatePerKg.toStringAsFixed(0)}/KG',
                 icon: Icons.directions_boat_rounded,
                 gradientColors: const [Color(0xFF0D9488), Color(0xFF0F766E)],
                 onTap: () => context.push('/sea-freight'),
@@ -593,7 +737,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Expanded(
               child: _buildServiceCard(
                 title: 'Consolidation',
-                description: 'Merge multiple 1688 / Taobao parcels into 1...',
+                description: 'Merge multiple 1688 / Taobao parcels into 1 package.',
                 actionText: 'Start packing',
                 badgeText: 'SAVE 35%',
                 icon: Icons.inventory_2_outlined,
@@ -605,9 +749,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Expanded(
               child: _buildServiceCard(
                 title: 'Buy For Me',
-                description: 'Sourcing, negotiation & factory inspection.',
+                description: 'Sourcing, negotiation & factory purchasing.',
                 actionText: 'Request item',
-                badgeText: '0% AGENT',
+                badgeText: '${settings.buyForMeFeePercent.toStringAsFixed(0)}% FEE',
                 icon: Icons.shopping_cart_outlined,
                 gradientColors: const [Color(0xFF059669), Color(0xFF10B981)],
                 onTap: () => context.push('/buy-for-me'),
@@ -623,9 +767,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Expanded(
               child: _buildServiceCard(
                 title: 'RMB Exchange',
-                description: 'Instant NGN to Alipay, WeChat & bank pay.',
+                description: 'Instant NGN to Alipay, WeChat & bank payout.',
                 actionText: 'Swap now',
-                badgeText: 'INSTANT',
+                badgeText: 'LIVE RATE',
                 icon: Icons.currency_exchange_rounded,
                 gradientColors: const [Color(0xFFDC2626), Color(0xFFEF4444)],
                 onTap: () => context.push('/exchange'),
@@ -635,7 +779,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             Expanded(
               child: _buildServiceCard(
                 title: 'Local Delivery',
-                description: 'Dispatch across Lagos Mainland, Island & States.',
+                description: 'Doorstep dispatch across Lagos and Nigerian States.',
                 actionText: 'Send parcel',
                 badgeText: 'DOORSTEP',
                 icon: Icons.local_shipping_outlined,

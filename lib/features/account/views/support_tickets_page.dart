@@ -1,60 +1,69 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../data/models/ticket_model.dart';
+import '../presentation/providers/support_provider.dart';
 
-class SupportTicketsPage extends StatefulWidget {
+class SupportTicketsPage extends ConsumerStatefulWidget {
   const SupportTicketsPage({super.key});
 
   @override
-  State<SupportTicketsPage> createState() => _SupportTicketsPageState();
+  ConsumerState<SupportTicketsPage> createState() => _SupportTicketsPageState();
 }
 
-class _SupportTicketsPageState extends State<SupportTicketsPage> {
+class _SupportTicketsPageState extends ConsumerState<SupportTicketsPage> {
   int _selectedTab = 0;
-  final _tabs = ['Open (3)', 'Pending', 'Resolved'];
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
-  final List<_TicketItem> _allTickets = [
-    const _TicketItem(
-      id: 'TIC-9921',
-      category: 'Shipping',
-      categoryColor: Color(0xFFF59E0B),
-      priority: 'Open',
-      priorityColor: Color(0xFFF59E0B),
-      priorityIcon: Icons.flag,
-      title: 'Delayed Shipment REQ-8412',
-      description:
-          'The shipment was supposed to arrive last Tuesday but tracking hasn\'t updated since i...',
-      updatedAgo: '2h ago',
-    ),
-    const _TicketItem(
-      id: 'TIC-9844',
-      category: 'Payment',
-      categoryColor: Color(0xFFEF4444),
-      priority: 'Urgent',
-      priorityColor: Color(0xFFEF4444),
-      priorityIcon: Icons.error_outline,
-      title: 'Wallet Top-up Failed',
-      description:
-          'Tried to fund my wallet via wire transfer yesterday but the balance is still showing...',
-      updatedAgo: '5h ago',
-    ),
-    const _TicketItem(
-      id: 'TIC-9750',
-      category: 'Account',
-      categoryColor: Color(0xFF0D9488),
-      priority: 'Open',
-      priorityColor: Color(0xFFF59E0B),
-      priorityIcon: Icons.flag,
-      title: 'Update Company Address',
-      description:
-          'We recently moved warehouses and need to update our primary delivery address for all...',
-      updatedAgo: '1d ago',
-    ),
-  ];
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<TicketModel> _filterTickets(List<TicketModel> tickets) {
+    var list = tickets;
+    if (_selectedTab == 0) {
+      list = list.where((t) => t.status.toLowerCase() == 'open' || t.status.toLowerCase() == 'active').toList();
+    } else if (_selectedTab == 1) {
+      list = list.where((t) => t.status.toLowerCase().contains('pending') || t.status.toLowerCase().contains('process')).toList();
+    } else if (_selectedTab == 2) {
+      list = list.where((t) => t.status.toLowerCase().contains('resolve') || t.status.toLowerCase().contains('close')).toList();
+    }
+
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((t) {
+        final sub = t.subject.toLowerCase();
+        final cat = t.category.toLowerCase();
+        final id = t.id.toLowerCase();
+        return sub.contains(q) || cat.contains(q) || id.contains(q);
+      }).toList();
+    }
+
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final supportState = ref.watch(supportProvider);
+    final tickets = supportState.tickets;
+    final openCount = tickets.where((t) => t.status.toLowerCase() == 'open' || t.status.toLowerCase() == 'active').length;
+    final pendingCount = tickets.where((t) => t.status.toLowerCase().contains('pending')).length;
+    final resolvedCount = tickets.where((t) => t.status.toLowerCase().contains('resolve') || t.status.toLowerCase().contains('close')).length;
+
+    final tabs = [
+      'Open ($openCount)',
+      'Pending ($pendingCount)',
+      'Resolved ($resolvedCount)',
+    ];
+
+    final filtered = _filterTickets(tickets);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -113,108 +122,169 @@ class _SupportTicketsPageState extends State<SupportTicketsPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // ── Search Bar ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: Container(
-              height: 46,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 14),
-                  const Icon(
-                    Icons.search,
-                    color: AppColors.onSurfaceVariant,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search tickets...',
-                        hintStyle: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      style: AppTypography.bodySm,
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(supportProvider.notifier).refresh(),
+        color: AppColors.primary,
+        child: Column(
+          children: [
+            // ── Search Bar ───────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    const Icon(
+                      Icons.search,
+                      color: AppColors.onSurfaceVariant,
+                      size: 20,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (val) {
+                          setState(() => _searchQuery = val.trim());
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search tickets...',
+                          hintStyle: AppTypography.bodySm.copyWith(
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        style: AppTypography.bodySm,
+                      ),
+                    ),
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // ── Tabs ────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: List.generate(_tabs.length, (index) {
-                final isSelected = _selectedTab == index;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedTab = index),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 20),
-                    child: Column(
-                      children: [
-                        Text(
-                          _tabs[index],
-                          style: AppTypography.bodyMd.copyWith(
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : FontWeight.w400,
+            // ── Tabs ────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: List.generate(tabs.length, (index) {
+                  final isSelected = _selectedTab == index;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedTab = index),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 20),
+                      child: Column(
+                        children: [
+                          Text(
+                            tabs[index],
+                            style: AppTypography.bodyMd.copyWith(
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: isSelected
+                                  ? AppColors.onBackground
+                                  : AppColors.onSurfaceVariant,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 2,
+                            width: 40,
                             color: isSelected
-                                ? AppColors.onBackground
-                                : AppColors.onSurfaceVariant,
-                            fontSize: 13,
+                                ? AppColors.primary
+                                : Colors.transparent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+            const SizedBox(height: 12),
+
+            // ── Ticket List ─────────────────────────────────────────
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.support_agent_outlined,
+                                  color: AppColors.primary,
+                                  size: 32,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No Support Tickets Found',
+                                style: AppTypography.headlineMd.copyWith(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                tickets.isEmpty
+                                    ? 'Need help with an exchange, warehouse delivery, or shipment? Create a new ticket below.'
+                                    : 'No tickets found matching this filter.',
+                                style: AppTypography.bodySm.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Container(
-                          height: 2,
-                          width: 40,
-                          color: isSelected
-                              ? AppColors.primary
-                              : Colors.transparent,
-                        ),
-                      ],
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final ticket = filtered[index];
+                        return _LiveTicketCard(
+                          ticket: ticket,
+                          onTap: () => context.push('/ticket-details', extra: ticket),
+                        );
+                      },
                     ),
-                  ),
-                );
-              }),
             ),
-          ),
-
-          const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
-          const SizedBox(height: 12),
-
-          // ── Ticket List ─────────────────────────────────────────
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _allTickets.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final ticket = _allTickets[index];
-                return _TicketCard(
-                  item: ticket,
-                  onTap: () => context.push('/ticket-details'),
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
 
       // ── FAB: New Ticket ──────────────────────────────────────────
@@ -239,44 +309,56 @@ class _SupportTicketsPageState extends State<SupportTicketsPage> {
   }
 }
 
-// ── Ticket Data Model ──────────────────────────────────────────────────────
-class _TicketItem {
-  final String id;
-  final String category;
-  final Color categoryColor;
-  final String priority;
-  final Color priorityColor;
-  final IconData priorityIcon;
-  final String title;
-  final String description;
-  final String updatedAgo;
-
-  const _TicketItem({
-    required this.id,
-    required this.category,
-    required this.categoryColor,
-    required this.priority,
-    required this.priorityColor,
-    required this.priorityIcon,
-    required this.title,
-    required this.description,
-    required this.updatedAgo,
-  });
-}
-
-// ── Ticket Card ────────────────────────────────────────────────────────────
-class _TicketCard extends StatelessWidget {
-  final _TicketItem item;
+// ── Live Ticket Card ────────────────────────────────────────────────────────
+class _LiveTicketCard extends StatelessWidget {
+  final TicketModel ticket;
   final VoidCallback onTap;
 
-  const _TicketCard({required this.item, required this.onTap});
+  const _LiveTicketCard({
+    required this.ticket,
+    required this.onTap,
+  });
+
+  Color _categoryColor() {
+    switch (ticket.category.toLowerCase()) {
+      case 'shipping':
+      case 'shipment':
+        return const Color(0xFFF59E0B);
+      case 'payment':
+      case 'wallet':
+        return const Color(0xFFEF4444);
+      case 'account':
+        return const Color(0xFF0D9488);
+      default:
+        return const Color(0xFF3B82F6);
+    }
+  }
+
+  Color _priorityColor() {
+    switch (ticket.priority.toLowerCase()) {
+      case 'urgent':
+      case 'high':
+        return AppColors.error;
+      case 'normal':
+      case 'medium':
+        return AppColors.tertiary;
+      default:
+        return AppColors.secondary;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final catColor = _categoryColor();
+    final priColor = _priorityColor();
+    final dateStr = ticket.updatedAt != null
+        ? DateFormat('MMM dd').format(ticket.updatedAt!)
+        : DateFormat('MMM dd').format(ticket.createdAt);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
@@ -291,123 +373,123 @@ class _TicketCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top row: ID + Category badge + Priority
+            // Row 1: ID + category badge + priority pill
             Row(
               children: [
                 Text(
-                  item.id,
+                  ticket.id.toUpperCase(),
                   style: AppTypography.labelCaps.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    letterSpacing: 0.3,
+                    color: AppColors.onSurfaceVariant,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 8,
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: item.categoryColor.withValues(alpha: 0.12),
+                    color: catColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    item.category,
-                    style: AppTypography.bodySm.copyWith(
-                      color: item.categoryColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                    ticket.category.toUpperCase(),
+                    style: AppTypography.labelCaps.copyWith(
+                      color: catColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
                 const Spacer(),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      item.priorityIcon,
-                      size: 14,
-                      color: item.priorityColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      item.priority,
-                      style: AppTypography.bodySm.copyWith(
-                        color: item.priorityColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: priColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.flag, size: 11, color: priColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        ticket.priority.toUpperCase(),
+                        style: AppTypography.labelCaps.copyWith(
+                          color: priColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
-            // Title
+            // Subject
             Text(
-              item.title,
+              ticket.subject,
               style: AppTypography.bodyMd.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
-            ),
-
-            const SizedBox(height: 6),
-
-            // Description
-            Text(
-              item.description,
-              style: AppTypography.bodySm.copyWith(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 12,
-                height: 1.5,
-              ),
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
 
-            const SizedBox(height: 14),
+            if (ticket.description.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                ticket.description,
+                style: AppTypography.bodySm.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
 
-            // Bottom row: Updated time + View Details
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const SizedBox(height: 10),
+
+            // Footer: Updated time + Status
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.access_time,
-                      size: 14,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Updated ${item.updatedAgo}',
-                      style: AppTypography.bodySm.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Updated $dateStr',
+                  style: AppTypography.bodySm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
                 ),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'View Details',
-                      style: AppTypography.bodySm.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
+                      ticket.status.toUpperCase(),
+                      style: AppTypography.labelCaps.copyWith(
+                        color: ticket.status.toLowerCase() == 'open'
+                            ? AppColors.primary
+                            : AppColors.success,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10,
                       ),
                     ),
-                    const SizedBox(width: 2),
+                    const SizedBox(width: 4),
                     const Icon(
-                      Icons.arrow_forward,
-                      size: 14,
-                      color: AppColors.onBackground,
+                      Icons.chevron_right,
+                      size: 16,
+                      color: AppColors.onSurfaceVariant,
                     ),
                   ],
                 ),
@@ -419,3 +501,4 @@ class _TicketCard extends StatelessWidget {
     );
   }
 }
+

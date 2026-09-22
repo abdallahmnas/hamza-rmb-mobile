@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../presentation/providers/support_provider.dart';
 
-class NewTicketPage extends StatefulWidget {
+class NewTicketPage extends ConsumerStatefulWidget {
   const NewTicketPage({super.key});
 
   @override
-  State<NewTicketPage> createState() => _NewTicketPageState();
+  ConsumerState<NewTicketPage> createState() => _NewTicketPageState();
 }
 
-class _NewTicketPageState extends State<NewTicketPage> {
-  String _selectedCategory = '';
+class _NewTicketPageState extends ConsumerState<NewTicketPage> {
+  String _selectedCategory = 'Shipping';
   String _selectedPriority = 'Normal';
   final _subjectController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _orderRefController = TextEditingController();
+  bool _isSubmitting = false;
 
   final _categories = [
     'Shipping',
@@ -34,6 +37,78 @@ class _NewTicketPageState extends State<NewTicketPage> {
     _descriptionController.dispose();
     _orderRefController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSubmit() async {
+    final subject = _subjectController.text.trim();
+    final description = _descriptionController.text.trim();
+    final orderRef = _orderRefController.text.trim();
+
+    if (subject.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a ticket subject'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter ticket details / description'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final success = await ref.read(supportProvider.notifier).createTicket(
+            subject: subject,
+            category: _selectedCategory,
+            priority: _selectedPriority.toLowerCase(),
+            description: orderRef.isNotEmpty
+                ? '$description\n\n[Order Ref: $orderRef]'
+                : description,
+          );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ticket created successfully!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          context.pop();
+        } else {
+          final err = ref.read(supportProvider).error ?? 'Failed to create ticket';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(err.replaceAll('Exception: ', '')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -398,9 +473,7 @@ class _NewTicketPageState extends State<NewTicketPage> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () {
-                // Submit ticket
-              },
+              onPressed: _isSubmitting ? null : _handleSubmit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -409,20 +482,29 @@ class _NewTicketPageState extends State<NewTicketPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Submit Ticket',
-                    style: AppTypography.bodyLg.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Submit Ticket',
+                          style: AppTypography.bodyLg.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.send, size: 18),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.send, size: 18),
-                ],
-              ),
             ),
           ),
         ),
@@ -430,3 +512,4 @@ class _NewTicketPageState extends State<NewTicketPage> {
     );
   }
 }
+

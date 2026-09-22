@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/auth/auth_service.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 
-class SplashPage extends StatefulWidget {
+class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
   @override
-  State<SplashPage> createState() => _SplashPageState();
+  ConsumerState<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage>
+class _SplashPageState extends ConsumerState<SplashPage>
     with TickerProviderStateMixin {
   late AnimationController _entranceController;
   late AnimationController _pulseController;
@@ -97,6 +100,14 @@ class _SplashPageState extends State<SplashPage>
     _entranceController.forward().then((_) {
       if (mounted) {
         _pulseController.repeat(reverse: true);
+      }
+    });
+
+    // 3. Hydrate & trigger background refresh for public system metadata & auth profile
+    Future.microtask(() {
+      ref.read(systemMetadataProvider.notifier).refreshAll();
+      if (ref.read(authServiceProvider).isLoggedIn) {
+        ref.read(authServiceProvider.notifier).refreshProfile();
       }
     });
 

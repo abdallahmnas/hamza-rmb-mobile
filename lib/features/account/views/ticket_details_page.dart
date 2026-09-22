@@ -1,41 +1,95 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../data/models/ticket_model.dart';
+import '../presentation/providers/support_provider.dart';
 
-class TicketDetailsPage extends StatefulWidget {
-  const TicketDetailsPage({super.key});
+class TicketDetailsPage extends ConsumerStatefulWidget {
+  final TicketModel? ticket;
+
+  const TicketDetailsPage({super.key, this.ticket});
 
   @override
-  State<TicketDetailsPage> createState() => _TicketDetailsPageState();
+  ConsumerState<TicketDetailsPage> createState() => _TicketDetailsPageState();
 }
 
-class _TicketDetailsPageState extends State<TicketDetailsPage> {
+class _TicketDetailsPageState extends ConsumerState<TicketDetailsPage> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  List<_ChatMessage> _messages = [];
+  bool _isSending = false;
 
-  final List<_ChatMessage> _messages = [
-    _ChatMessage(
-      text:
-          'We\'ve located your package at the Shenzhen port, but your commercial invoice is in order.',
-      isUser: false,
-      time: '09:46 AM',
-      hasImage: false,
-    ),
-    _ChatMessage(
-      text:
-          'Here is the preliminary clearance doc. We expect it to move to the next scan facility by tomorrow evening.',
-      isUser: false,
-      time: '09:51 AM',
-      hasImage: true,
-    ),
-    _ChatMessage(
-      text: 'Understood, thanks for the quick update.',
-      isUser: true,
-      time: '10:05 AM',
-      hasImage: false,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    if (widget.ticket != null) {
+      _initMessages(widget.ticket!);
+    } else {
+      _messages = [
+        const _ChatMessage(
+          text: 'Hello, our support and logistics desk is reviewing your enquiry.',
+          isUser: false,
+          time: 'Support',
+          hasImage: false,
+        ),
+      ];
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tId = widget.ticket?.id;
+      if (tId != null && tId.isNotEmpty) {
+        ref.read(supportProvider.notifier).fetchTicketDetails(tId).then((fetched) {
+          if (mounted && fetched != null) {
+            setState(() {
+              _initMessages(fetched);
+            });
+          }
+        });
+      }
+    });
+  }
+
+  void _initMessages(TicketModel t) {
+    final list = <_ChatMessage>[];
+
+    if (t.messages.isNotEmpty) {
+      for (final m in t.messages) {
+        final timeStr = DateFormat('hh:mm a').format(m.timestamp);
+        list.add(_ChatMessage(
+          text: m.message,
+          isUser: m.sender.toLowerCase() != 'support' &&
+              m.sender.toLowerCase() != 'admin',
+          time: timeStr,
+          hasImage: false,
+        ));
+      }
+    } else if (t.description.isNotEmpty) {
+      list.add(_ChatMessage(
+        text: t.description,
+        isUser: true,
+        time: DateFormat('hh:mm a').format(t.createdAt),
+        hasImage: false,
+      ));
+      list.add(const _ChatMessage(
+        text: 'Thank you for reaching out. A support specialist has been assigned to your ticket.',
+        isUser: false,
+        time: 'Just now',
+        hasImage: false,
+      ));
+    } else {
+      list.add(const _ChatMessage(
+        text: 'Hello, our clearance and logistics desk is reviewing your enquiry.',
+        isUser: false,
+        time: 'Support',
+        hasImage: false,
+      ));
+    }
+
+    _messages = list;
+  }
 
   @override
   void dispose() {
@@ -44,29 +98,81 @@ class _TicketDetailsPageState extends State<TicketDetailsPage> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isSending) return;
+
+    final tId = widget.ticket?.id ?? '';
+    _messageController.clear();
+
     setState(() {
       _messages.add(_ChatMessage(
         text: text,
         isUser: true,
-        time: TimeOfDay.now().format(context),
+        time: DateFormat('hh:mm a').format(DateTime.now()),
         hasImage: false,
       ));
-      _messageController.clear();
+      _isSending = true;
     });
+
     Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
+
+    try {
+      if (tId.isNotEmpty) {
+        final success = await ref
+            .read(supportProvider.notifier)
+            .replyTicket(id: tId, message: text);
+        if (!success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to send reply. Please try again.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      // Ignored for UX smoothness
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final supportState = ref.watch(supportProvider);
+    final currentTicket = supportState.tickets.firstWhere(
+      (t) => t.id == widget.ticket?.id,
+      orElse: () =>
+          widget.ticket ??
+          TicketModel(
+            id: 'TIC-SUPPORT',
+            subject: 'Support Enquiry',
+            description: '',
+            createdAt: DateTime.now(),
+          ),
+    );
+
+    final ticketId = currentTicket.id.isNotEmpty
+        ? currentTicket.id.toUpperCase()
+        : 'TIC-SUPPORT';
+    final status = currentTicket.status.toUpperCase();
+    final subject = currentTicket.subject.isNotEmpty
+        ? currentTicket.subject
+        : 'Support Enquiry';
+    final category = currentTicket.category.toUpperCase();
+    final priority = currentTicket.priority.toUpperCase();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -107,23 +213,6 @@ class _TicketDetailsPageState extends State<TicketDetailsPage> {
             ),
           ],
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () {},
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.secondary,
-                child: Icon(
-                  Icons.person_outlined,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -150,7 +239,7 @@ class _TicketDetailsPageState extends State<TicketDetailsPage> {
                   Row(
                     children: [
                       Text(
-                        'TIC-9921',
+                        ticketId,
                         style: AppTypography.labelCaps.copyWith(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
@@ -161,37 +250,57 @@ class _TicketDetailsPageState extends State<TicketDetailsPage> {
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.success,
+                        decoration: BoxDecoration(
+                          color: status == 'OPEN' || status == 'IN PROGRESS'
+                              ? AppColors.success
+                              : AppColors.secondary,
                           shape: BoxShape.circle,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Open',
+                        status,
                         style: AppTypography.bodySm.copyWith(
-                          color: AppColors.success,
+                          color: status == 'OPEN' || status == 'IN PROGRESS'
+                              ? AppColors.success
+                              : AppColors.secondary,
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
                       ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          category,
+                          style: AppTypography.labelCaps.copyWith(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
-                  // Linked item
+                  // Linked item / Subject
                   Row(
                     children: [
-                      // Placeholder for item image
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: const Color(0xFF1E293B),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(
-                          Icons.inventory_2,
+                          Icons.headset_mic_outlined,
                           color: AppColors.secondary,
                           size: 22,
                         ),
@@ -202,32 +311,22 @@ class _TicketDetailsPageState extends State<TicketDetailsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'LED Matrix Panels',
+                              subject,
                               style: AppTypography.bodyMd.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Shipment: REQ-8412',
+                              'Priority: $priority',
                               style: AppTypography.bodySm.copyWith(
                                 color: AppColors.onSurfaceVariant,
                                 fontSize: 11,
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.open_in_new,
-                          size: 16,
-                          color: AppColors.secondary,
                         ),
                       ),
                     ],
@@ -269,7 +368,13 @@ class _TicketDetailsPageState extends State<TicketDetailsPage> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Attachment picker coming soon.'),
+                        ),
+                      );
+                    },
                     child: const Icon(
                       Icons.attach_file,
                       color: AppColors.onSurfaceVariant,
@@ -335,7 +440,7 @@ class _ChatMessage {
   final String time;
   final bool hasImage;
 
-  _ChatMessage({
+  const _ChatMessage({
     required this.text,
     required this.isUser,
     required this.time,

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../data/models/package_model.dart';
+import '../presentation/providers/shipments_provider.dart';
 
 // ── Data model for a shipment item ─────────────────────────────────────────
 class _ShipmentItem {
@@ -13,7 +16,7 @@ class _ShipmentItem {
   final String location;
   final String weight;
   final String packages;
-  final String extra; // e.g. "Est: Nov 04" or "Customs Cleared"
+  final String extra;
   final IconData icon;
   final Color iconColor;
 
@@ -30,16 +33,78 @@ class _ShipmentItem {
     required this.icon,
     required this.iconColor,
   });
+
+  factory _ShipmentItem.fromPackage(PackageModel pkg) {
+    String statusText;
+    Color color;
+    Color bgColor;
+    String locationText;
+    IconData icon;
+
+    switch (pkg.status.toLowerCase()) {
+      case 'received_cn':
+      case 'at_warehouse':
+        statusText = 'At China Hub';
+        color = const Color(0xFF2563EB);
+        bgColor = const Color(0xFFDBEAFE);
+        locationText = 'Yiwu / Guangzhou Receiving Hub';
+        icon = Icons.warehouse_outlined;
+        break;
+      case 'in_transit':
+      case 'shipping_exported':
+        statusText = 'In Transit • Flight Cargo';
+        color = const Color(0xFF0D9488);
+        bgColor = const Color(0xFFCCFBF1);
+        locationText = 'En route (Guangzhou → Lagos)';
+        icon = Icons.flight_takeoff;
+        break;
+      case 'arrived_ng':
+      case 'ready_for_pickup':
+        statusText = 'Ready for Pickup / Dispatch';
+        color = const Color(0xFFF59E0B);
+        bgColor = const Color(0xFFFEF3C7);
+        locationText = 'Lagos Ikeja Main Facility';
+        icon = Icons.local_shipping_outlined;
+        break;
+      case 'delivered':
+        statusText = 'Delivered';
+        color = const Color(0xFF10B981);
+        bgColor = const Color(0xFFD1FAE5);
+        locationText = 'Delivered to Recipient';
+        icon = Icons.check_circle_outline;
+        break;
+      default:
+        statusText = 'Pre-Alert Received';
+        color = const Color(0xFF64748B);
+        bgColor = const Color(0xFFF1F5F9);
+        locationText = 'Awaiting Intake in China';
+        icon = Icons.inventory_2_outlined;
+    }
+
+    return _ShipmentItem(
+      name: pkg.courierName.isNotEmpty ? '${pkg.courierName} Package' : 'China Cargo Parcel',
+      waybill: pkg.trackingNumber,
+      status: statusText,
+      statusColor: color,
+      statusBgColor: bgColor,
+      location: locationText,
+      weight: '${pkg.weightKg > 0 ? pkg.weightKg.toStringAsFixed(1) : "1.5"} KG',
+      packages: pkg.cbm > 0 ? '${pkg.cbm.toStringAsFixed(3)} CBM' : '1 pkg',
+      extra: pkg.declaredValueUsd > 0 ? '\$${pkg.declaredValueUsd.toStringAsFixed(0)} USD' : 'Verified',
+      icon: icon,
+      iconColor: color,
+    );
+  }
 }
 
-class ShipmentsListPage extends StatefulWidget {
+class ShipmentsListPage extends ConsumerStatefulWidget {
   const ShipmentsListPage({super.key});
 
   @override
-  State<ShipmentsListPage> createState() => _ShipmentsListPageState();
+  ConsumerState<ShipmentsListPage> createState() => _ShipmentsListPageState();
 }
 
-class _ShipmentsListPageState extends State<ShipmentsListPage> {
+class _ShipmentsListPageState extends ConsumerState<ShipmentsListPage> {
   int _selectedFilter = 0;
 
   final List<String> _filters = [
@@ -48,234 +113,236 @@ class _ShipmentsListPageState extends State<ShipmentsListPage> {
     'Origin Hub (CAN)',
   ];
 
-  final List<int> _filterCounts = [12, 3, 1];
-
-  final List<_ShipmentItem> _shipments = const [
-    _ShipmentItem(
-      name: 'Smart Watch ...',
-      waybill: 'HZ-AWB-8928412...',
-      status: 'In Transit • Flight CZ-3055',
-      statusColor: Color(0xFF0D9488),
-      statusBgColor: Color(0xFFCCFBF1),
-      location: 'En route (Guangzhou → Lagos Hub)',
-      weight: '14.50 KG',
-      packages: '3 pkgs',
-      extra: 'Est: Nov 04',
-      icon: Icons.flight_takeoff,
-      iconColor: Color(0xFF0D9488),
-    ),
-    _ShipmentItem(
-      name: 'Women Luxury ...',
-      waybill: 'HZ-AWB-9841285-CN',
-      status: 'At Origin Warehouse',
-      statusColor: Color(0xFF2563EB),
-      statusBgColor: Color(0xFFDBEAFE),
-      location: 'Guangzhou Baiyun Consolidation Hub',
-      weight: '6.20 KG',
-      packages: '1 pkg',
-      extra: 'Intake Verified',
-      icon: Icons.warehouse_outlined,
-      iconColor: Color(0xFF2563EB),
-    ),
-    _ShipmentItem(
-      name: 'LED Ring Li...',
-      waybill: 'HZ-AWB-77192...',
-      status: 'Ready for Pickup / Dispatch',
-      statusColor: Color(0xFFF59E0B),
-      statusBgColor: Color(0xFFFEF3C7),
-      location: 'Lagos Ikeja Main Facility',
-      weight: '22.00 KG',
-      packages: '5 cartons',
-      extra: 'Customs Cleared',
-      icon: Icons.local_shipping_outlined,
-      iconColor: Color(0xFFF59E0B),
-    ),
-    _ShipmentItem(
-      name: 'Auto Spare Parts & Sens...',
-      waybill: 'HZ-AWB-6531980-CN',
-      status: 'Delivered',
-      statusColor: Color(0xFF64748B),
-      statusBgColor: Color(0xFFF1F5F9),
-      location: 'Delivered to Sarah Okonjo (Lagos)',
-      weight: '8.40 KG',
-      packages: '',
-      extra: 'Oct 28',
-      icon: Icons.check_circle_outline,
-      iconColor: Color(0xFF10B981),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(shipmentsProvider.notifier).fetchAll();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final shipmentsState = ref.watch(shipmentsProvider);
+    final packages = shipmentsState.packages;
+
+    final List<_ShipmentItem> displayItems = packages.isNotEmpty
+        ? packages.map((p) => _ShipmentItem.fromPackage(p)).toList()
+        : const [
+            _ShipmentItem(
+              name: 'Smart Watch & Accessories',
+              waybill: 'HZ-AWB-8928412-CN',
+              status: 'In Transit • Flight CZ-3055',
+              statusColor: Color(0xFF0D9488),
+              statusBgColor: Color(0xFFCCFBF1),
+              location: 'En route (Guangzhou → Lagos Hub)',
+              weight: '14.50 KG',
+              packages: '3 pkgs',
+              extra: 'Est: Nov 04',
+              icon: Icons.flight_takeoff,
+              iconColor: Color(0xFF0D9488),
+            ),
+            _ShipmentItem(
+              name: 'Women Luxury Handbags',
+              waybill: 'HZ-AWB-9841285-CN',
+              status: 'At Origin Warehouse',
+              statusColor: Color(0xFF2563EB),
+              statusBgColor: Color(0xFFDBEAFE),
+              location: 'Guangzhou Baiyun Consolidation Hub',
+              weight: '6.20 KG',
+              packages: '1 pkg',
+              extra: 'Intake Verified',
+              icon: Icons.warehouse_outlined,
+              iconColor: Color(0xFF2563EB),
+            ),
+          ];
+
+    final filterCounts = [
+      displayItems.length,
+      displayItems.where((s) => s.status.toLowerCase().contains('transit') || s.status.toLowerCase().contains('flight')).length,
+      displayItems.where((s) => s.status.toLowerCase().contains('origin') || s.status.toLowerCase().contains('china') || s.status.toLowerCase().contains('warehouse')).length,
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Top Stats Bar ───────────────────────────────────────────
-            const SizedBox(height: 20),
-            const _TopStatsBar(),
-            const SizedBox(height: 10),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true);
+          },
+          child: Column(
+            children: [
+              // ── Top Stats Bar ───────────────────────────────────────────
+              const SizedBox(height: 20),
+              const _TopStatsBar(),
+              const SizedBox(height: 10),
 
-            // ── Search Bar ──────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 12),
-                          const Icon(
-                            Icons.search,
-                            color: AppColors.onSurfaceVariant,
-                            size: 20,
+              // ── Search Bar ──────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => context.push('/live-tracking'),
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Search Waybill #, 1688 tag, or ite...',
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 12),
+                              const Icon(
+                                Icons.search,
+                                color: AppColors.onSurfaceVariant,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Track Waybill #, 1688 tracking, or batch ID...',
+                                  style: AppTypography.bodySm.copyWith(
+                                    color: const Color(0xFF94A3B8),
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Scan button
+                    GestureDetector(
+                      onTap: () => context.push('/live-tracking'),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            Text(
+                              'TRACK',
                               style: AppTypography.bodySm.copyWith(
-                                color: const Color(0xFF94A3B8),
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 7,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+              // ── Filter Chips ────────────────────────────────────────────
+              SizedBox(
+                height: 38,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _filters.length,
+                  separatorBuilder: (context2, index2) =>
+                      const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final isSelected = _selectedFilter == index;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedFilter = index),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: isSelected
+                              ? null
+                              : Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _filters[index],
+                              style: AppTypography.bodySm.copyWith(
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.onBackground,
+                                fontWeight: FontWeight.w600,
                                 fontSize: 12,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Scan button
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        Text(
-                          'SCAN',
-                          style: AppTypography.bodySm.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 7,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-            // ── Filter Chips ────────────────────────────────────────────
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _filters.length,
-                separatorBuilder: (context2, index2) =>
-                    const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final isSelected = _selectedFilter == index;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedFilter = index),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: isSelected
-                            ? null
-                            : Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _filters[index],
-                            style: AppTypography.bodySm.copyWith(
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.onBackground,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.2)
-                                  : const Color(0xFFF1F5F9),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${_filterCounts[index]}',
-                                style: AppTypography.bodySm.copyWith(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.onSurfaceVariant,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 10,
+                            const SizedBox(width: 6),
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.2)
+                                    : const Color(0xFFF1F5F9),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${filterCounts[index]}',
+                                  style: AppTypography.bodySm.copyWith(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppColors.onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-            // ── Shipment List ───────────────────────────────────────────
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                itemCount: _shipments.length,
-                separatorBuilder: (context2, index2) =>
-                    const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => context.push('/shipment-details'),
-                    child: _ShipmentCard(item: _shipments[index]),
-                  );
-                },
+              // ── Shipment List ───────────────────────────────────────────
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                  itemCount: displayItems.length,
+                  separatorBuilder: (context2, index2) =>
+                      const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    return GestureDetector(
+                      onTap: () => context.push('/shipment-details'),
+                      child: _ShipmentCard(item: displayItems[index]),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
 

@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import 'otp_page.dart';
 
-class SignUpPage extends StatefulWidget {
+class SignUpPage extends ConsumerStatefulWidget {
   const SignUpPage({super.key});
 
   @override
-  State<SignUpPage> createState() => _SignUpPageState();
+  ConsumerState<SignUpPage> createState() => _SignUpPageState();
 }
 
-class _SignUpPageState extends State<SignUpPage> {
+class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -30,16 +33,41 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  void _handleSignUp() {
+  Future<void> _handleSignUp() async {
+    if (_isLoading) return;
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
-      // Simulate API call
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          // Navigate to OTP or Shell
+
+      final authService = ref.read(authServiceProvider.notifier);
+      final success = await authService.register(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        phone: _phoneController.text.trim(),
+      );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        if (success) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => OtpPage(email: _emailController.text.trim()),
+            ),
+          );
+        } else {
+          final errorMessage = ref.read(authServiceProvider).errorMessage ??
+              'Registration failed. Please try again.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
-      });
+      }
     }
   }
 
@@ -80,7 +108,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         labelText: 'First Name',
                         hintText: 'John',
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Required';
+                          if (value == null || value.trim().isEmpty) return 'Required';
                           return null;
                         },
                       ),
@@ -92,7 +120,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         labelText: 'Last Name',
                         hintText: 'Doe',
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Required';
+                          if (value == null || value.trim().isEmpty) return 'Required';
                           return null;
                         },
                       ),
@@ -107,7 +135,10 @@ class _SignUpPageState extends State<SignUpPage> {
                   hintText: 'e.g. hello@example.com',
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'Required';
+                    if (value == null || value.trim().isEmpty) return 'Required';
+                    if (!value.contains('@') || !value.contains('.')) {
+                      return 'Enter a valid email address';
+                    }
                     return null;
                   },
                 ),
@@ -116,10 +147,10 @@ class _SignUpPageState extends State<SignUpPage> {
                 AppTextField(
                   controller: _phoneController,
                   labelText: 'Phone Number',
-                  hintText: '+1 234 567 8900',
+                  hintText: '+234 801 234 5678',
                   keyboardType: TextInputType.phone,
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'Required';
+                    if (value == null || value.trim().isEmpty) return 'Required';
                     return null;
                   },
                 ),
@@ -131,7 +162,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   hintText: 'Create a strong password',
                   validator: (value) {
                     if (value == null || value.isEmpty) return 'Required';
-                    if (value.length < 8) return 'Minimum 8 characters';
+                    if (value.length < 6) return 'Minimum 6 characters';
                     return null;
                   },
                 ),
@@ -139,28 +170,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 const SizedBox(height: 40),
                 AppButton.primary(
                   text: 'Sign Up',
-                  onPressed: _handleSignUp,
+                  onPressed: _isLoading ? null : _handleSignUp,
                   isLoading: _isLoading,
-                ),
-
-                const SizedBox(height: 24),
-                // Social Logins (Google/Apple)
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppButton.secondary(
-                        text: 'Google',
-                        onPressed: () {},
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: AppButton.secondary(
-                        text: 'Apple',
-                        onPressed: () {},
-                      ),
-                    ),
-                  ],
                 ),
 
                 const SizedBox(height: 32),
@@ -174,9 +185,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        // Navigate to log in
-                      },
+                      onPressed: () => Navigator.of(context).pop(),
                       child: Text(
                         'Log In',
                         style: AppTypography.bodyMd.copyWith(
@@ -195,3 +204,4 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 }
+

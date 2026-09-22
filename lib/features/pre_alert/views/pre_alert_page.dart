@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/auth/auth_service.dart';
+import '../../shipments/presentation/providers/shipments_provider.dart';
 
-class PreAlertPage extends StatefulWidget {
+class PreAlertPage extends ConsumerStatefulWidget {
   const PreAlertPage({super.key});
 
   @override
-  State<PreAlertPage> createState() => _PreAlertPageState();
+  ConsumerState<PreAlertPage> createState() => _PreAlertPageState();
 }
 
-class _PreAlertPageState extends State<PreAlertPage> {
-  String _selectedWarehouse = '';
+class _PreAlertPageState extends ConsumerState<PreAlertPage> {
+  String _selectedWarehouse = 'Guangzhou Hub';
   String _selectedCourier = 'SF Express';
   final _trackingController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _valueController = TextEditingController();
+  bool _isSubmitting = false;
 
   final _warehouses = [
     'Guangzhou Hub',
@@ -40,8 +44,71 @@ class _PreAlertPageState extends State<PreAlertPage> {
     super.dispose();
   }
 
+  Future<void> _handleSubmit() async {
+    final tracking = _trackingController.text.trim();
+    final description = _descriptionController.text.trim();
+
+    if (tracking.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a tracking number'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter package description / items'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final value = double.tryParse(_valueController.text.trim()) ?? 0.0;
+      await ref.read(shipmentsProvider.notifier).submitPreAlert(
+            trackingNumber: tracking,
+            courierName: _selectedCourier,
+            declaredValueUsd: value,
+            itemDescription: description.isNotEmpty ? description : null,
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pre-alert submitted successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authServiceProvider).user;
+    final customerId = user?.customerId ?? 'HZ-USER';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -106,7 +173,7 @@ class _PreAlertPageState extends State<PreAlertPage> {
                     ),
                     const Spacer(),
                     Text(
-                      'HZ-20241001',
+                      customerId,
                       style: AppTypography.bodyMd.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.3,
@@ -292,19 +359,6 @@ class _PreAlertPageState extends State<PreAlertPage> {
                         style: AppTypography.bodyMd,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        // QR scan placeholder
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Icon(
-                          Icons.qr_code_scanner,
-                          color: AppColors.onSurfaceVariant,
-                          size: 22,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -437,82 +491,7 @@ class _PreAlertPageState extends State<PreAlertPage> {
               ),
             ),
 
-            const SizedBox(height: 28),
-
-            // ── Supporting Documents ─────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Supporting Documents',
-                style: AppTypography.bodyMd.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: GestureDetector(
-                onTap: () {
-                  // File upload placeholder
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 28),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                      style: BorderStyle.solid,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A)
-                                  .withValues(alpha: 0.06),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.cloud_upload_outlined,
-                          color: AppColors.secondary,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Tap to upload invoice or package photo',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'JPG, PNG, PDF up to 5MB',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -535,9 +514,7 @@ class _PreAlertPageState extends State<PreAlertPage> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () {
-                // Submit pre-alert
-              },
+              onPressed: _isSubmitting ? null : _handleSubmit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -546,20 +523,29 @@ class _PreAlertPageState extends State<PreAlertPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Submit Pre-alert',
-                    style: AppTypography.bodyLg.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Submit Pre-alert',
+                          style: AppTypography.bodyLg.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.send, size: 18),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.send, size: 18),
-                ],
-              ),
             ),
           ),
         ),
@@ -567,3 +553,4 @@ class _PreAlertPageState extends State<PreAlertPage> {
     );
   }
 }
+

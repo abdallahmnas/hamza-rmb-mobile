@@ -1,13 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../data/models/transaction_model.dart';
+import '../presentation/providers/wallet_provider.dart';
 
-class TransactionDetailsPage extends StatelessWidget {
-  const TransactionDetailsPage({super.key});
+class TransactionDetailsPage extends ConsumerWidget {
+  final TransactionModel? transaction;
+
+  const TransactionDetailsPage({super.key, this.transaction});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final walletState = ref.watch(walletProvider);
+    final tx = transaction ??
+        (walletState.transactions.isNotEmpty
+            ? walletState.transactions.first
+            : null);
+
+    final isCredit = tx?.isCredit ?? false;
+    final formatter = NumberFormat('#,##0.00');
+    final amountStr = tx != null
+        ? '${isCredit ? '+' : '-'}₦${formatter.format(tx.amount.abs())}'
+        : '-₦45,000.00';
+
+    final statusStr = tx?.status.toUpperCase() ?? 'SUCCESS';
+    final isSuccess = statusStr == 'SUCCESS' || statusStr == 'COMPLETED';
+
+    final dateStr = tx != null
+        ? DateFormat('MMM dd, yyyy, hh:mm a').format(tx.createdAt)
+        : 'Oct 24, 2024, 14:30';
+
+    final reference = tx?.reference ?? tx?.id ?? 'TXN-99283471';
+    final desc = tx?.description ?? 'Shipment Payment / Currency Settlement';
+    final typeStr = tx?.type.toUpperCase() ?? 'PAYMENT';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -58,24 +87,26 @@ class TransactionDetailsPage extends StatelessWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
+                      color: isSuccess ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.secondary.withValues(alpha: 0.3),
+                        color: isSuccess
+                            ? AppColors.secondary.withValues(alpha: 0.3)
+                            : AppColors.tertiary.withValues(alpha: 0.3),
                         width: 3,
                       ),
                     ),
-                    child: const Icon(
-                      Icons.check,
-                      color: AppColors.secondary,
+                    child: Icon(
+                      isSuccess ? Icons.check : Icons.access_time,
+                      color: isSuccess ? AppColors.secondary : AppColors.tertiary,
                       size: 28,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'SUCCESS',
+                    statusStr,
                     style: AppTypography.labelCaps.copyWith(
-                      color: AppColors.secondary,
+                      color: isSuccess ? AppColors.secondary : AppColors.tertiary,
                       fontWeight: FontWeight.w800,
                       fontSize: 11,
                       letterSpacing: 1.5,
@@ -83,7 +114,7 @@ class TransactionDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '-₦45,000.00',
+                    amountStr,
                     style: AppTypography.headlineLg.copyWith(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
@@ -93,11 +124,12 @@ class TransactionDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'To: Hamza Logistics Global',
+                    desc,
                     style: AppTypography.bodySm.copyWith(
                       color: AppColors.onSurfaceVariant,
                       fontSize: 12,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -132,9 +164,9 @@ class TransactionDetailsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const _DetailRow(
+                  _DetailRow(
                     label: 'Transaction Type',
-                    value: 'Shipment Payment',
+                    value: typeStr,
                   ),
                   const _DetailDivider(),
                   _DetailRow(
@@ -145,26 +177,26 @@ class TransactionDetailsPage extends StatelessWidget {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.success,
+                          decoration: BoxDecoration(
+                            color: isSuccess ? AppColors.success : AppColors.tertiary,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Completed',
+                          statusStr,
                           style: AppTypography.bodyMd.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.success,
+                            color: isSuccess ? AppColors.success : AppColors.tertiary,
                           ),
                         ),
                       ],
                     ),
                   ),
                   const _DetailDivider(),
-                  const _DetailRow(
+                  _DetailRow(
                     label: 'Date & Time',
-                    value: 'Oct 24, 2023, 14:30',
+                    value: dateStr,
                   ),
                   const _DetailDivider(),
                   _DetailRow(
@@ -173,7 +205,7 @@ class TransactionDetailsPage extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'TXN-99283471',
+                          reference,
                           style: AppTypography.bodyMd.copyWith(
                             fontWeight: FontWeight.w600,
                             fontFamily: 'monospace',
@@ -182,7 +214,7 @@ class TransactionDetailsPage extends StatelessWidget {
                         const SizedBox(width: 6),
                         GestureDetector(
                           onTap: () {
-                            Clipboard.setData(const ClipboardData(text: 'TXN-99283471'));
+                            Clipboard.setData(ClipboardData(text: reference));
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Transaction ID copied'),
@@ -241,7 +273,7 @@ class TransactionDetailsPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'REQ-8412 (Air Freight - LED Matrix Panels)',
+                        reference,
                         style: AppTypography.bodyMd.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -257,6 +289,7 @@ class TransactionDetailsPage extends StatelessWidget {
           ],
         ),
       ),
+
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
         decoration: BoxDecoration(

@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
+import '../data/models/transaction_model.dart';
+import '../presentation/providers/wallet_provider.dart';
 
-class WalletPage extends StatefulWidget {
+class WalletPage extends ConsumerStatefulWidget {
   const WalletPage({super.key});
 
   @override
-  State<WalletPage> createState() => _WalletPageState();
+  ConsumerState<WalletPage> createState() => _WalletPageState();
 }
 
-class _WalletPageState extends State<WalletPage> {
+class _WalletPageState extends ConsumerState<WalletPage> {
   bool _isBalanceVisible = true;
   int _selectedFilterIndex = 0; // 0: All, 1: Inflow, 2: Outflow, 3: Exchange
 
@@ -32,6 +38,18 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   void _showFundWalletSheet() {
+    final user = ref.read(authServiceProvider).user;
+    final wallet = ref.read(walletProvider).wallet;
+
+    final bankName = wallet.bankName.isNotEmpty ? wallet.bankName : 'Wema Bank';
+    final accountNumber = wallet.accountNumber.isNotEmpty
+        ? wallet.accountNumber
+        : (user?.phone ?? '0123456789');
+    final accountName = wallet.accountName.isNotEmpty
+        ? wallet.accountName
+        : 'Hamza RMB / ${user?.fullName ?? 'User'}';
+    final paymentRef = user?.customerId ?? 'HZ-USER';
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -110,19 +128,19 @@ class _WalletPageState extends State<WalletPage> {
                 children: [
                   _buildAccountRow(
                     'Bank Name',
-                    'Guaranty Trust Bank (GTB)',
+                    bankName,
                     false,
                   ),
                   const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                  _buildAccountRow('Account Number', '0123456789', true),
+                  _buildAccountRow('Account Number', accountNumber, true),
                   const Divider(height: 18, color: Color(0xFFE2E8F0)),
                   _buildAccountRow(
                     'Account Name',
-                    'Hamza RMB / Sarah Okonjo',
+                    accountName,
                     false,
                   ),
                   const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                  _buildAccountRow('Payment Reference', 'HZ-20241001', true),
+                  _buildAccountRow('Payment Reference', paymentRef, true),
                 ],
               ),
             ),
@@ -135,7 +153,7 @@ class _WalletPageState extends State<WalletPage> {
               child: ElevatedButton.icon(
                 onPressed: () {
                   _copyToClipboard(
-                    'Bank: GTBank\nAccount Number: 0123456789\nAccount Name: Hamza RMB / Sarah Okonjo\nRef: HZ-20241001',
+                    'Bank: $bankName\nAccount Number: $accountNumber\nAccount Name: $accountName\nRef: $paymentRef',
                     'All bank details copied to clipboard!',
                   );
                   Navigator.of(ctx).pop();
@@ -157,6 +175,7 @@ class _WalletPageState extends State<WalletPage> {
       ),
     );
   }
+
 
   Widget _buildAccountRow(String label, String value, bool isCopyable) {
     return Row(
@@ -285,76 +304,81 @@ class _WalletPageState extends State<WalletPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 12),
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(walletProvider.notifier).refresh(),
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
 
-            // ── 1. Elevated Luxury Balance Card ──────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildLuxuryBalanceContainer(),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ── 2. Quick Action Buttons Row ──────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildActionButtonsRow(),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── 3. Currency Accounts Section ─────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SectionHeader(
-                title: 'Currency Accounts',
-                actionText: 'Manage',
-                onActionPressed: () {},
+              // ── 1. Elevated Luxury Balance Card ──────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildLuxuryBalanceContainer(),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildCurrencyCardsList(),
 
-            const SizedBox(height: 22),
+              const SizedBox(height: 20),
 
-            // ── 4. RMB Live Rate Banner ──────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildRmbRateBanner(),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ── 5. Recent Transactions Section ───────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SectionHeader(
-                title: 'Recent Transactions',
-                actionText: 'View All',
-                onActionPressed: () {},
+              // ── 2. Quick Action Buttons Row ──────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildActionButtonsRow(),
               ),
-            ),
-            const SizedBox(height: 10),
 
-            // Filter chips row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildFilterChipsRow(),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 24),
 
-            // Transactions list
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildTransactionsList(),
-            ),
+              // ── 3. Currency Accounts Section ─────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SectionHeader(
+                  title: 'Currency Accounts',
+                  actionText: 'Manage',
+                  onActionPressed: () {},
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildCurrencyCardsList(),
 
-            const SizedBox(height: 100), // Bottom padding for shell nav
-          ],
+              const SizedBox(height: 22),
+
+              // ── 4. RMB Live Rate Banner ──────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildRmbRateBanner(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── 5. Recent Transactions Section ───────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SectionHeader(
+                  title: 'Recent Transactions',
+                  actionText: 'View All',
+                  onActionPressed: () {},
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // Filter chips row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildFilterChipsRow(),
+              ),
+              const SizedBox(height: 12),
+
+              // Transactions list
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildTransactionsList(),
+              ),
+
+              const SizedBox(height: 100), // Bottom padding for shell nav
+            ],
+          ),
         ),
       ),
     );
@@ -362,6 +386,21 @@ class _WalletPageState extends State<WalletPage> {
 
   // ── Luxury Balance Container ──────────────────────────────────────────────
   Widget _buildLuxuryBalanceContainer() {
+    final user = ref.watch(authServiceProvider).user;
+    final wallet = ref.watch(walletProvider).wallet;
+    final meta = ref.watch(systemMetadataProvider);
+
+    final balance = wallet.balance;
+    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final cnyEquiv = liveRate > 0 ? balance / liveRate : 0.0;
+    final usdEquiv = balance / 1550.0;
+
+    final formatter = NumberFormat('#,##0.00');
+    final formattedBalance = formatter.format(balance);
+    final parts = formattedBalance.split('.');
+    final wholePart = parts[0];
+    final decimalPart = parts.length > 1 ? '.${parts[1]}' : '.00';
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -448,56 +487,20 @@ class _WalletPageState extends State<WalletPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
-                                Icons.shield_rounded,
+                                Icons.verified_user_outlined,
                                 color: Color(0xFF2DD4BF),
                                 size: 12,
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'MULTI-VAULT',
+                                user?.customerId ?? 'HZ-ACCOUNT',
                                 style: AppTypography.labelCaps.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 8,
-                                  letterSpacing: 0.5,
+                                  fontSize: 9,
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () => _copyToClipboard(
-                            'HZ-20241001',
-                            'Wallet ID HZ-20241001 copied!',
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'ID: HZ-20241001',
-                                  style: AppTypography.labelCaps.copyWith(
-                                    color: const Color(0xFFCBD5E1),
-                                    fontSize: 9,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.copy_rounded,
-                                  color: Color(0xFF94A3B8),
-                                  size: 10,
-                                ),
-                              ],
-                            ),
                           ),
                         ),
                       ],
@@ -556,7 +559,7 @@ class _WalletPageState extends State<WalletPage> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '1,250,000',
+                        wholePart,
                         style: AppTypography.headlineLg.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
@@ -565,7 +568,7 @@ class _WalletPageState extends State<WalletPage> {
                         ),
                       ),
                       Text(
-                        '.00',
+                        decimalPart,
                         style: AppTypography.headlineMd.copyWith(
                           color: Colors.white.withValues(alpha: 0.5),
                           fontWeight: FontWeight.w700,
@@ -604,7 +607,9 @@ class _WalletPageState extends State<WalletPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _isBalanceVisible ? '≈ ¥6,346.60 CNY' : '≈ ¥••••',
+                        _isBalanceVisible
+                            ? '≈ ¥${formatter.format(cnyEquiv)} CNY'
+                            : '≈ ¥••••',
                         style: AppTypography.bodySm.copyWith(
                           color: const Color(0xFFFBBF24),
                           fontWeight: FontWeight.w700,
@@ -621,7 +626,9 @@ class _WalletPageState extends State<WalletPage> {
                         ),
                       ),
                       Text(
-                        _isBalanceVisible ? '≈ \$806.45 USD' : '≈ \$••••',
+                        _isBalanceVisible
+                            ? '≈ \$${formatter.format(usdEquiv)} USD'
+                            : '≈ \$••••',
                         style: AppTypography.bodySm.copyWith(
                           color: const Color(0xFF38BDF8),
                           fontWeight: FontWeight.w700,
@@ -642,7 +649,7 @@ class _WalletPageState extends State<WalletPage> {
 
                 const SizedBox(height: 14),
 
-                // Bottom trend & monthly flow row
+                // Bottom trend & status
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -659,13 +666,13 @@ class _WalletPageState extends State<WalletPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(
-                            Icons.trending_up_rounded,
+                            Icons.check_circle_outline,
                             color: Color(0xFF34D399),
                             size: 14,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '+2.4% this week',
+                            'Active Tier 2 Account',
                             style: AppTypography.bodySm.copyWith(
                               color: const Color(0xFF34D399),
                               fontWeight: FontWeight.w700,
@@ -676,7 +683,7 @@ class _WalletPageState extends State<WalletPage> {
                       ),
                     ),
                     Text(
-                      'Monthly Inflow: ₦3.45M',
+                      'Hamza Virtual Settlement',
                       style: AppTypography.bodySm.copyWith(
                         color: const Color(0xFF94A3B8),
                         fontSize: 10,
@@ -721,10 +728,17 @@ class _WalletPageState extends State<WalletPage> {
           icon: Icons.send_rounded,
           label: 'Transfer',
           isPrimary: false,
-          onTap: () => _copyToClipboard(
-            '0123456789',
-            'Wallet transfer account copied!',
-          ),
+          onTap: () {
+            final wallet = ref.read(walletProvider).wallet;
+            final user = ref.read(authServiceProvider).user;
+            final acc = wallet.accountNumber.isNotEmpty
+                ? wallet.accountNumber
+                : (user?.phone ?? '0123456789');
+            _copyToClipboard(
+              acc,
+              'Wallet transfer account copied!',
+            );
+          },
         ),
       ],
     );
@@ -815,6 +829,15 @@ class _WalletPageState extends State<WalletPage> {
 
   // ── Currency Accounts List ────────────────────────────────────────────────
   Widget _buildCurrencyCardsList() {
+    final meta = ref.watch(systemMetadataProvider);
+    final wallet = ref.watch(walletProvider).wallet;
+    final balance = wallet.balance;
+    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final cnyEquiv = liveRate > 0 ? balance / liveRate : 0.0;
+    final usdEquiv = balance / 1550.0;
+
+    final formatter = NumberFormat('#,##0.00');
+
     return SizedBox(
       height: 120,
       child: ListView(
@@ -824,8 +847,8 @@ class _WalletPageState extends State<WalletPage> {
           _buildEnhancedCurrencyCard(
             code: 'CNY',
             name: 'Chinese Yuan',
-            amount: '¥45,000.00',
-            rateTag: '1 CNY ≈ ₦228.50',
+            amount: '¥${formatter.format(cnyEquiv)}',
+            rateTag: '1 CNY ≈ ₦${liveRate.toStringAsFixed(2)}',
             flagColor: const Color(0xFFDE2910),
             gradientColors: const [Color(0xFFFFF1F2), Color(0xFFFFE4E6)],
             onAction: () => context.push('/exchange'),
@@ -834,7 +857,7 @@ class _WalletPageState extends State<WalletPage> {
           _buildEnhancedCurrencyCard(
             code: 'USD',
             name: 'US Dollar',
-            amount: '\$2,450.00',
+            amount: '\$${formatter.format(usdEquiv)}',
             rateTag: '1 USD ≈ ₦1,550.00',
             flagColor: const Color(0xFF1D4ED8),
             gradientColors: const [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
@@ -844,8 +867,8 @@ class _WalletPageState extends State<WalletPage> {
           _buildEnhancedCurrencyCard(
             code: 'NGN',
             name: 'Nigerian Naira',
-            amount: '₦1,250,000',
-            rateTag: 'Primary Currency',
+            amount: '₦${formatter.format(balance)}',
+            rateTag: 'Primary Wallet Balance',
             flagColor: const Color(0xFF059669),
             gradientColors: const [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
             onAction: _showFundWalletSheet,
@@ -956,6 +979,9 @@ class _WalletPageState extends State<WalletPage> {
 
   // ── RMB Live Rate Banner ──────────────────────────────────────────────────
   Widget _buildRmbRateBanner() {
+    final meta = ref.watch(systemMetadataProvider);
+    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -984,7 +1010,7 @@ class _WalletPageState extends State<WalletPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Live Exchange: ¥1 = ₦228.50',
+                  'Live Exchange: ¥1 = ₦${liveRate.toStringAsFixed(2)}',
                   style: AppTypography.bodySm.copyWith(
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
@@ -1066,57 +1092,72 @@ class _WalletPageState extends State<WalletPage> {
 
   // ── Transactions List ─────────────────────────────────────────────────────
   Widget _buildTransactionsList() {
-    final transactions = const [
-      _TransactionData(
-        icon: Icons.north_east_rounded,
-        iconBgColor: Color(0xFFFEE2E2),
-        iconColor: Color(0xFFDC2626),
-        title: 'Air Freight Waybill Payment',
-        subtitle: 'HZ-8839-LOS • Today, 10:45 AM',
-        amount: '-₦150,000.00',
-        amountColor: AppColors.onBackground,
-        category: 'Outflow',
-      ),
-      _TransactionData(
-        icon: Icons.south_west_rounded,
-        iconBgColor: Color(0xFFD1FAE5),
-        iconColor: Color(0xFF059669),
-        title: 'Virtual Account Top-up',
-        subtitle: 'GTBank Transfer • Yesterday, 2:15 PM',
-        amount: '+₦500,000.00',
-        amountColor: Color(0xFF059669),
-        category: 'Inflow',
-      ),
-      _TransactionData(
-        icon: Icons.currency_exchange_rounded,
-        iconBgColor: Color(0xFFEFF6FF),
-        iconColor: Color(0xFF2563EB),
-        title: 'Currency Swap NGN ➔ CNY',
-        subtitle: 'Alipay Recipient: Chen Wei • Oct 24',
-        amount: '-₦350,000.00',
-        secondaryAmount: '+¥5,500.00',
-        amountColor: AppColors.onBackground,
-        category: 'Exchange',
-      ),
-      _TransactionData(
-        icon: Icons.north_east_rounded,
-        iconBgColor: Color(0xFFFEE2E2),
-        iconColor: Color(0xFFDC2626),
-        title: '1688 Supplier Procurement',
-        subtitle: 'Shenzhen Electronics Ltd • Oct 22',
-        amount: '-¥12,000.00',
-        amountColor: AppColors.onBackground,
-        category: 'Outflow',
-      ),
-    ];
+    final transactions = ref.watch(walletProvider).transactions;
 
     final filtered = transactions.where((tx) {
       if (_selectedFilterIndex == 0) return true;
-      if (_selectedFilterIndex == 1) return tx.category == 'Inflow';
-      if (_selectedFilterIndex == 2) return tx.category == 'Outflow';
-      if (_selectedFilterIndex == 3) return tx.category == 'Exchange';
+      final type = tx.type.toLowerCase();
+      if (_selectedFilterIndex == 1) {
+        return type.contains('deposit') ||
+            type.contains('credit') ||
+            type.contains('topup') ||
+            type.contains('inflow');
+      }
+      if (_selectedFilterIndex == 2) {
+        return type.contains('debit') ||
+            type.contains('withdrawal') ||
+            type.contains('payment') ||
+            type.contains('outflow');
+      }
+      if (_selectedFilterIndex == 3) {
+        return type.contains('exchange') || type.contains('swap');
+      }
       return true;
     }).toList();
+
+    if (filtered.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.receipt_long_outlined,
+                color: Color(0xFF94A3B8),
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No Transactions Yet',
+              style: AppTypography.bodyMd.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Your incoming and outgoing payments will appear here.',
+              style: AppTypography.bodySm.copyWith(
+                color: const Color(0xFF94A3B8),
+                fontSize: 11,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -1141,9 +1182,35 @@ class _WalletPageState extends State<WalletPage> {
     );
   }
 
-  Widget _buildTransactionTileItem(_TransactionData tx, bool isLast) {
+  Widget _buildTransactionTileItem(TransactionModel tx, bool isLast) {
+    final isCredit = tx.isCredit;
+    final formatter = NumberFormat('#,##0.00');
+    final formattedAmt = '${isCredit ? '+' : '-'}₦${formatter.format(tx.amount.abs())}';
+
+    final iconData = isCredit
+        ? Icons.south_west_rounded
+        : (tx.type.toLowerCase().contains('exchange')
+            ? Icons.currency_exchange_rounded
+            : Icons.north_east_rounded);
+
+    final iconBgColor = isCredit
+        ? const Color(0xFFD1FAE5)
+        : (tx.type.toLowerCase().contains('exchange')
+            ? const Color(0xFFEFF6FF)
+            : const Color(0xFFFEE2E2));
+
+    final iconColor = isCredit
+        ? const Color(0xFF059669)
+        : (tx.type.toLowerCase().contains('exchange')
+            ? const Color(0xFF2563EB)
+            : const Color(0xFFDC2626));
+
+    final dateStr =
+        DateFormat('MMM dd, yyyy • hh:mm a').format(tx.createdAt);
+
+
     return InkWell(
-      onTap: () => context.push('/transaction-details'),
+      onTap: () => context.push('/transaction-details', extra: tx),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1159,10 +1226,10 @@ class _WalletPageState extends State<WalletPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: tx.iconBgColor,
+                color: iconBgColor,
                 shape: BoxShape.circle,
               ),
-              child: Icon(tx.icon, color: tx.iconColor, size: 18),
+              child: Icon(iconData, color: iconColor, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1170,7 +1237,7 @@ class _WalletPageState extends State<WalletPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tx.title,
+                    tx.description.isNotEmpty ? tx.description : tx.type.toUpperCase(),
                     style: AppTypography.bodyMd.copyWith(
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
@@ -1181,7 +1248,7 @@ class _WalletPageState extends State<WalletPage> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    tx.subtitle,
+                    dateStr,
                     style: AppTypography.bodySm.copyWith(
                       color: const Color(0xFF64748B),
                       fontSize: 11,
@@ -1196,24 +1263,27 @@ class _WalletPageState extends State<WalletPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  _isBalanceVisible ? tx.amount : '••••',
+                  _isBalanceVisible ? formattedAmt : '••••',
                   style: AppTypography.bodyMd.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: tx.amountColor,
+                    color: isCredit
+                        ? const Color(0xFF059669)
+                        : AppColors.onBackground,
                     fontSize: 13,
                   ),
                 ),
-                if (tx.secondaryAmount != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    _isBalanceVisible ? tx.secondaryAmount! : '••••',
-                    style: AppTypography.bodySm.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0D9488),
-                      fontSize: 11,
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  tx.status.toUpperCase(),
+                  style: AppTypography.labelCaps.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: tx.status.toLowerCase() == 'completed' ||
+                            tx.status.toLowerCase() == 'success'
+                        ? const Color(0xFF059669)
+                        : AppColors.tertiary,
+                    fontSize: 9,
                   ),
-                ],
+                ),
               ],
             ),
           ],
@@ -1223,26 +1293,3 @@ class _WalletPageState extends State<WalletPage> {
   }
 }
 
-class _TransactionData {
-  final IconData icon;
-  final Color iconBgColor;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final String amount;
-  final String? secondaryAmount;
-  final Color amountColor;
-  final String category;
-
-  const _TransactionData({
-    required this.icon,
-    required this.iconBgColor,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.amount,
-    this.secondaryAmount,
-    required this.amountColor,
-    required this.category,
-  });
-}

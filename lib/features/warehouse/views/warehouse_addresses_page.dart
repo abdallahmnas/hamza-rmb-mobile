@@ -1,73 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/auth/auth_service.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 
-class WarehouseAddressesPage extends StatelessWidget {
+class WarehouseAddressesPage extends ConsumerWidget {
   const WarehouseAddressesPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metadataState = ref.watch(systemMetadataProvider);
+    final authState = ref.watch(authServiceProvider);
+    final customerId = authState.user?.customerId ?? 'HZ-2026-MEMBER';
+    final userFullName = authState.user?.fullName.isNotEmpty == true
+        ? authState.user!.fullName
+        : 'Hamza RMB Client';
+
+    final chinaAddress = metadataState.settings.chinaAirCargoAddressCn;
+    final nigeriaAddress = metadataState.settings.nigeriaOfficeAddress;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleSpacing: 0,
-        leadingWidth: 48,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Center(
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Center(
-                child: Text(
-                  'H',
-                  style: AppTypography.bodySm.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
         title: Text(
-          'Hamza RMB',
+          'Warehouse Receiving Addresses',
           style: AppTypography.headlineMd.copyWith(fontSize: 16),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.onBackground,
-              size: 24,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () {},
-              child: const CircleAvatar(
-                radius: 16,
-                backgroundColor: AppColors.primary,
-                child: Icon(
-                  Icons.person_outlined,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -85,7 +48,7 @@ class WarehouseAddressesPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Use these addresses as your shipping destination when buying from overseas suppliers.',
+                    'Use these addresses as your shipping destination when buying from 1688, Taobao, or overseas suppliers.',
                     style: AppTypography.bodySm.copyWith(
                       color: AppColors.onSurfaceVariant,
                     ),
@@ -96,53 +59,29 @@ class WarehouseAddressesPage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // ── Guangzhou Hub ─────────────────────────────────────────
+            // ── China Hub ─────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _WarehouseCard(
-                hubName: 'Guangzhou Hub',
-                freightType: 'AIR FREIGHT',
+                hubName: 'China Receiving Hub (Air / Sea)',
+                freightType: 'CHINA CARGO INTAKE',
                 iconColor: AppColors.tertiary,
-                fields: const [
+                fields: [
                   _AddressField(
-                    label: '收货人名字',
-                    value: 'Hamza Logistics (HZ-20241001)',
+                    label: '收货人 (Recipient Name)',
+                    value: '$userFullName ($customerId)',
                   ),
-                  _AddressField(
-                    label: '收货人号码',
+                  const _AddressField(
+                    label: '收货人电话 (Phone Number)',
                     value: '+86 138 0013 8000',
                   ),
                   _AddressField(
-                    label: '收货人地址',
-                    value:
-                        'No. 128, Airport Expressway, Baiyun District, Guangzhou City, Guangdong Province',
+                    label: '收货人地址 (Chinese Address)',
+                    value: chinaAddress,
                   ),
-                  _AddressField(
-                    label: '邮政编码',
-                    value: '510400',
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── London Hub ───────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _WarehouseCard(
-                hubName: 'London Hub',
-                freightType: 'AIR FREIGHT',
-                iconColor: AppColors.tertiary,
-                fields: const [
-                  _AddressField(
-                    label: 'Recipient Name',
-                    value: 'Hamza Logistics (HZ-20241001)',
-                  ),
-                  _AddressField(
-                    label: 'Full Address',
-                    value:
-                        'Unit 4, Heathrow Logistics Park, Bedfont Road, Hounslow, London',
+                  const _AddressField(
+                    label: '所在地区 (City/Province)',
+                    value: 'Yiwu / Guangzhou, Guangdong',
                   ),
                 ],
               ),
@@ -150,22 +89,25 @@ class WarehouseAddressesPage extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // ── Houston Hub ──────────────────────────────────────────
+            // ── Nigeria Head Office Hub ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _WarehouseCard(
-                hubName: 'Houston Hub',
-                freightType: 'AIR FREIGHT',
-                iconColor: AppColors.tertiary,
-                fields: const [
+                hubName: 'Nigeria Central Hub & Collection',
+                freightType: 'DESTINATION WAREHOUSE',
+                iconColor: AppColors.primary,
+                fields: [
                   _AddressField(
-                    label: 'Recipient Name',
-                    value: 'Hamza Logistics (HZ-20241001)',
+                    label: 'Company Name',
+                    value: metadataState.settings.companyName,
                   ),
                   _AddressField(
                     label: 'Full Address',
-                    value:
-                        '4500 South Wayside Drive, Suite 100, Houston, TX 77087',
+                    value: nigeriaAddress,
+                  ),
+                  const _AddressField(
+                    label: 'Lagos Airport Pickup Point',
+                    value: 'Cargo Village, Muritala Muhammed Int. Airport, Ikeja, Lagos',
                   ),
                 ],
               ),
