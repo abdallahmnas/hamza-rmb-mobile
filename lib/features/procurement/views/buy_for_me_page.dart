@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import '../../../core/services/media_upload_service.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../presentation/providers/procurement_provider.dart';
 
 class BuyForMePage extends ConsumerStatefulWidget {
@@ -25,11 +27,24 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
   final _priceController = TextEditingController();
   final _variantsController = TextEditingController();
   
+  final _currencyFormat = NumberFormat('#,##0.00', 'en_US');
+
   File? _localImageFile;
   String? _uploadedImageUrl;
   bool _isUploadingImage = false;
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    _quantityController.addListener(_onPriceOrQtyChanged);
+    _priceController.addListener(_onPriceOrQtyChanged);
+  }
+
+  void _onPriceOrQtyChanged() {
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -409,7 +424,15 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
 
               _buildImageAttachmentSection(),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
+
+              // ── Cost Breakdown Card ──────────────────────────────────────
+              _buildCostEstimationCard(
+                quantity: int.tryParse(_quantityController.text.trim()) ?? 1,
+                priceCny: double.tryParse(_priceController.text.trim()) ?? 0.0,
+              ),
+
+              const SizedBox(height: 24),
               AppButton.primary(
                 text: _isSubmitting
                     ? 'Submitting Request...'
@@ -417,9 +440,116 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _handleSubmit,
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCostEstimationCard({
+    required int quantity,
+    required double priceCny,
+  }) {
+    final metaState = ref.watch(systemMetadataProvider);
+    final settings = metaState.settings;
+    final cnyRate = settings.cnyExchangeRate > 0 ? settings.cnyExchangeRate : 215.0;
+    final fixedFee = settings.buyForMeFixedFee > 0 ? settings.buyForMeFixedFee : 1000.0;
+
+    final subtotalCny = priceCny * quantity;
+    final subtotalNgn = subtotalCny * cnyRate;
+    final grandTotalNgn = subtotalNgn + (subtotalCny > 0 ? fixedFee : 0.0);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'ESTIMATED COST BREAKDOWN',
+                style: AppTypography.labelCaps.copyWith(
+                  color: const Color(0xFF64748B),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 10,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '1¥ = ₦${cnyRate.toStringAsFixed(2)}',
+                  style: AppTypography.labelCaps.copyWith(
+                    color: const Color(0xFF0369A1),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 9.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Items Subtotal ($quantity × ¥${priceCny.toStringAsFixed(2)})',
+                style: AppTypography.bodySm.copyWith(color: const Color(0xFF64748B)),
+              ),
+              Text(
+                '¥${subtotalCny.toStringAsFixed(2)} (₦${_currencyFormat.format(subtotalNgn)})',
+                style: AppTypography.bodySm.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Buy For Me Service Fee (Fixed)',
+                style: AppTypography.bodySm.copyWith(color: const Color(0xFF64748B)),
+              ),
+              Text(
+                '₦${_currencyFormat.format(fixedFee)}',
+                style: AppTypography.bodySm.copyWith(
+                  color: const Color(0xFF0284C7),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 20, color: Color(0xFFE2E8F0)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Estimated Total',
+                style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w800),
+              ),
+              Text(
+                '₦${_currencyFormat.format(grandTotalNgn)}',
+                style: AppTypography.headlineMd.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

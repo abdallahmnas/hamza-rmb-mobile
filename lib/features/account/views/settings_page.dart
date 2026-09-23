@@ -314,7 +314,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _showLogoutConfirmation(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
@@ -444,7 +444,7 @@ class _SettingsToggleTile extends StatelessWidget {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: Colors.white,
+              activeThumbColor: Colors.white,
               activeTrackColor: AppColors.secondary,
               inactiveThumbColor: Colors.white,
               inactiveTrackColor: const Color(0xFFCBD5E1),

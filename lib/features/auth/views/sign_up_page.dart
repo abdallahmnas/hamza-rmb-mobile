@@ -52,7 +52,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
         if (success) {
           Navigator.of(context).push(
-            MaterialPageRoute(
+            MaterialPageRoute<void>(
               builder: (context) => OtpPage(email: _emailController.text.trim()),
             ),
           );

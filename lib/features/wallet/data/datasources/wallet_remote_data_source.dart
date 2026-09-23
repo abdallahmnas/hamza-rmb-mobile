@@ -11,6 +11,7 @@ abstract class WalletRemoteDataSource {
     required double amount,
     required String paymentMethod,
     required String reference,
+    String? imageUrl,
   });
   Future<List<TransactionModel>> fetchTransactions();
 }
@@ -23,7 +24,7 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
   @override
   Future<WalletModel> fetchWallet() async {
     try {
-      final response = await _dio.get('/wallet');
+      final response = await _dio.get<dynamic>('/wallet');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         final wltJson = data['data'] ?? data;
@@ -44,15 +45,21 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
     required double amount,
     required String paymentMethod,
     required String reference,
+    String? imageUrl,
   }) async {
     try {
-      await _dio.post(
+      final payload = <String, dynamic>{
+        'amount': amount,
+        'paymentMethod': paymentMethod,
+        'reference': reference,
+      };
+      if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+        payload['imageUrl'] = imageUrl.trim();
+      }
+
+      await _dio.post<dynamic>(
         '/wallet/topup',
-        data: {
-          'amount': amount,
-          'paymentMethod': paymentMethod,
-          'reference': reference,
-        },
+        data: payload,
       );
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Top-up failed');
@@ -64,7 +71,7 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
   @override
   Future<List<TransactionModel>> fetchTransactions() async {
     try {
-      final response = await _dio.get('/wallet/transactions');
+      final response = await _dio.get<dynamic>('/wallet/transactions');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {

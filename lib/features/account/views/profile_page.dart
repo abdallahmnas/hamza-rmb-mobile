@@ -170,7 +170,7 @@ class ProfilePage extends ConsumerWidget {
               ),
 
               // ── Account Section ────────────────────────────────────
-              _SectionLabel(label: 'Account'),
+              const _SectionLabel(label: 'Account'),
               const SizedBox(height: 8),
 
               _ProfileMenuItem(
@@ -231,7 +231,7 @@ class ProfilePage extends ConsumerWidget {
               const SizedBox(height: 16),
 
               // ── Support & Operations Section ───────────────────────
-              _SectionLabel(label: 'Support & Operations'),
+              const _SectionLabel(label: 'Support & Operations'),
               const SizedBox(height: 8),
 
               _ProfileMenuItem(
@@ -252,7 +252,7 @@ class ProfilePage extends ConsumerWidget {
               const SizedBox(height: 16),
 
               // ── Legal Section ──────────────────────────────────────
-              _SectionLabel(label: 'Legal'),
+              const _SectionLabel(label: 'Legal'),
               const SizedBox(height: 8),
 
               Padding(
@@ -336,7 +336,7 @@ class ProfilePage extends ConsumerWidget {
   }
 
   void _showLogoutConfirmation(BuildContext context, WidgetRef ref) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

@@ -38,199 +38,7 @@ class _WalletPageState extends ConsumerState<WalletPage> {
   }
 
   void _showFundWalletSheet() {
-    final user = ref.read(authServiceProvider).user;
-    final wallet = ref.read(walletProvider).wallet;
-
-    final bankName = wallet.bankName.isNotEmpty ? wallet.bankName : 'Wema Bank';
-    final accountNumber = wallet.accountNumber.isNotEmpty
-        ? wallet.accountNumber
-        : (user?.phone ?? '0123456789');
-    final accountName = wallet.accountName.isNotEmpty
-        ? wallet.accountName
-        : 'Hamza RMB / ${user?.fullName ?? 'User'}';
-    final paymentRef = user?.customerId ?? 'HZ-USER';
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Title
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D9488).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: Color(0xFF0D9488),
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Fund Your Wallet',
-                      style: AppTypography.headlineMd.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      'Instant bank transfer to your dedicated account',
-                      style: AppTypography.bodySm.copyWith(
-                        color: const Color(0xFF64748B),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-
-            // Account details box
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Column(
-                children: [
-                  _buildAccountRow(
-                    'Bank Name',
-                    bankName,
-                    false,
-                  ),
-                  const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                  _buildAccountRow('Account Number', accountNumber, true),
-                  const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                  _buildAccountRow(
-                    'Account Name',
-                    accountName,
-                    false,
-                  ),
-                  const Divider(height: 18, color: Color(0xFFE2E8F0)),
-                  _buildAccountRow('Payment Reference', paymentRef, true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Action button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  _copyToClipboard(
-                    'Bank: $bankName\nAccount Number: $accountNumber\nAccount Name: $accountName\nRef: $paymentRef',
-                    'All bank details copied to clipboard!',
-                  );
-                  Navigator.of(ctx).pop();
-                },
-                icon: const Icon(Icons.copy_rounded, size: 18),
-                label: const Text('Copy All Details'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildAccountRow(String label, String value, bool isCopyable) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: AppTypography.bodySm.copyWith(
-                color: const Color(0xFF64748B),
-                fontSize: 11,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: AppTypography.bodySm.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: AppColors.onBackground,
-              ),
-            ),
-          ],
-        ),
-        if (isCopyable)
-          GestureDetector(
-            onTap: () => _copyToClipboard(value, '$value copied!'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.copy, color: Color(0xFF2563EB), size: 11),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Copy',
-                    style: AppTypography.labelCaps.copyWith(
-                      color: const Color(0xFF2563EB),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
+    context.push('/fund-wallet');
   }
 
   void _showWithdrawSheet() {
@@ -391,7 +199,7 @@ class _WalletPageState extends ConsumerState<WalletPage> {
     final meta = ref.watch(systemMetadataProvider);
 
     final balance = wallet.balance;
-    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final liveRate = meta.exchangeRate.rate > 0 ? meta.exchangeRate.rate : 228.50;
     final cnyEquiv = liveRate > 0 ? balance / liveRate : 0.0;
     final usdEquiv = balance / 1550.0;
 
@@ -832,7 +640,7 @@ class _WalletPageState extends ConsumerState<WalletPage> {
     final meta = ref.watch(systemMetadataProvider);
     final wallet = ref.watch(walletProvider).wallet;
     final balance = wallet.balance;
-    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final liveRate = meta.exchangeRate.rate > 0 ? meta.exchangeRate.rate : 228.50;
     final cnyEquiv = liveRate > 0 ? balance / liveRate : 0.0;
     final usdEquiv = balance / 1550.0;
 
@@ -980,7 +788,7 @@ class _WalletPageState extends ConsumerState<WalletPage> {
   // ── RMB Live Rate Banner ──────────────────────────────────────────────────
   Widget _buildRmbRateBanner() {
     final meta = ref.watch(systemMetadataProvider);
-    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final liveRate = meta.exchangeRate.rate > 0 ? meta.exchangeRate.rate : 228.50;
 
     return Container(
       width: double.infinity,
@@ -1128,8 +936,8 @@ class _WalletPageState extends ConsumerState<WalletPage> {
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

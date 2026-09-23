@@ -51,7 +51,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String phone,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/auth/register',
         data: {
           'firstName': firstName,
@@ -90,7 +90,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String password,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/auth/login',
         data: {
           'email': email,
@@ -123,7 +123,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<AuthResponse> verifyOtp(String otp) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/auth/verify-otp',
         data: {'otp': otp},
       );
@@ -150,7 +150,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<AuthResponse> resendOtp() async {
     try {
-      final response = await _dio.post('/auth/resend-otp');
+      final response = await _dio.post<dynamic>('/auth/resend-otp');
       final data = response.data;
       String message = 'New OTP dispatched to email';
       if (data is Map<String, dynamic>) {
@@ -167,7 +167,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<UserModel> getMe() async {
     try {
-      final response = await _dio.get('/auth/me');
+      final response = await _dio.get<dynamic>('/auth/me');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         final userData = data['data'] ?? data['user'] ?? data;

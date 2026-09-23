@@ -204,7 +204,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: _filteredNotifications.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (context, index) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       final item = _filteredNotifications[index];
                       return _NotificationCard(

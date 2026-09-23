@@ -83,7 +83,7 @@ class _PendingItemsPageState extends State<PendingItemsPage> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'PKG-100${index}',
+                                    'PKG-100$index',
                                     style: AppTypography.labelCaps.copyWith(color: AppColors.secondary),
                                   ),
                                   const AppStatusBadge(
@@ -120,7 +120,7 @@ class _PendingItemsPageState extends State<PendingItemsPage> {
           color: AppColors.surface,
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.05),
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -5),
             ),

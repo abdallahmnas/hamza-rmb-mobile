@@ -19,6 +19,7 @@ import '../../features/procurement/views/buy_for_me_page.dart';
 import '../../features/consolidation/views/consolidation_flow_page.dart';
 import '../../features/consolidation/views/consolidation_review_page.dart';
 import '../../features/wallet/views/transaction_details_page.dart';
+import '../../features/wallet/views/fund_wallet_page.dart';
 import '../../features/warehouse/views/warehouse_addresses_page.dart';
 import '../../features/pre_alert/views/pre_alert_page.dart';
 import '../../features/pre_alert/views/pre_alert_history_page.dart';
@@ -29,6 +30,8 @@ import '../../features/account/views/settings_page.dart';
 import '../../features/notifications/views/notifications_page.dart';
 
 import '../../features/delivery/views/local_delivery_page.dart';
+import '../../features/delivery/views/location_picker_page.dart';
+import '../../features/delivery/data/models/location_model.dart';
 import '../../features/shipments/data/models/package_model.dart';
 import '../../features/wallet/data/models/transaction_model.dart';
 import '../../features/account/data/models/ticket_model.dart';
@@ -156,6 +159,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             AuthGuard(child: TransactionDetailsPage(transaction: state.extra as TransactionModel?)),
       ),
       GoRoute(
+        path: '/fund-wallet',
+        name: 'fundWallet',
+        builder: (context, state) => const AuthGuard(child: FundWalletPage()),
+      ),
+      GoRoute(
         path: '/warehouse-addresses',
         name: 'warehouseAddresses',
         builder: (context, state) =>
@@ -166,6 +174,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'localDelivery',
         builder: (context, state) =>
             const AuthGuard(child: LocalDeliveryPage()),
+      ),
+      GoRoute(
+        path: '/location-picker',
+        name: 'locationPicker',
+        builder: (context, state) {
+          final extra = state.extra;
+          String title = 'Select Location';
+          LocationModel? initialLoc;
+          if (extra is Map<String, dynamic>) {
+            title = extra['title'] as String? ?? title;
+            initialLoc = extra['initialLocation'] as LocationModel?;
+          } else if (extra is String) {
+            title = extra;
+          }
+          return AuthGuard(
+            child: LocationPickerPage(
+              title: title,
+              initialLocation: initialLoc,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/pre-alert',

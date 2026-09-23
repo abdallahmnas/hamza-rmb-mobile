@@ -114,6 +114,7 @@ class WalletNotifier extends Notifier<WalletState> {
     required double amount,
     required String paymentMethod,
     required String reference,
+    String? imageUrl,
   }) async {
     try {
       final remote = ref.read(walletRemoteDataSourceProvider);
@@ -121,6 +122,7 @@ class WalletNotifier extends Notifier<WalletState> {
         amount: amount,
         paymentMethod: paymentMethod,
         reference: reference,
+        imageUrl: imageUrl,
       );
       await fetchWalletAndTransactions(isUserInitiated: true);
       return true;

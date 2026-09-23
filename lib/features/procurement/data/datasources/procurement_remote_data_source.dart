@@ -36,7 +36,7 @@ class ProcurementRemoteDataSourceImpl implements ProcurementRemoteDataSource {
           'productUrl': productUrl,
           'quantity': quantity,
           'specifications': specifications,
-          if (notes != null) 'notes': notes,
+          'notes': ?notes,
         },
       );
       final data = response.data;

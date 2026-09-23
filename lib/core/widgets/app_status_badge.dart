@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../app/theme/app_typography.dart';
-import '../../app/theme/app_colors.dart';
 
 enum AppBadgeStatus { success, warning, error, info, pending }
 

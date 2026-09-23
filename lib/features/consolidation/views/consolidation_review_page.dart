@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,22 +33,41 @@ class _ConsolidationReviewPageState
   @override
   Widget build(BuildContext context) {
     final metaState = ref.watch(systemMetadataProvider);
-    final rate = metaState.exchangeRate.rate;
+    final settings = metaState.settings;
 
-    final totalWeightKg = widget.selectedPackages.fold<double>(
+    // Minimum 1kg: any weight below 1kg is calculated as 1 KG
+    final rawWeightKg = widget.selectedPackages.fold<double>(
       0.0,
       (sum, p) => sum + (p.weightKg > 0 ? p.weightKg : 0.5),
     );
+    final totalWeightKg = math.max(1.0, rawWeightKg);
+
+    final rawCbm = widget.selectedPackages.fold<double>(
+      0.0,
+      (sum, p) => sum + (p.cbm > 0 ? p.cbm : (p.weightKg > 0 ? p.weightKg / 300.0 : 0.01)),
+    );
+    final totalCbm = math.max(0.01, rawCbm);
 
     final totalDeclaredUsd = widget.selectedPackages.fold<double>(
       0.0,
       (sum, p) => sum + p.declaredValueUsd,
     );
 
-    // Approximate fees
-    final ratePerKgUsd = _shippingMethod == 'air' ? 8.5 : 2.5;
-    final shippingFeeUsd = totalWeightKg * ratePerKgUsd;
-    final shippingFeeNgn = shippingFeeUsd * rate;
+    // Dynamic shipping fee calculation from state provider settings
+    final double shippingFeeNgn;
+    final double rateValue;
+    if (_shippingMethod == 'air') {
+      rateValue = settings.airFreightRatePerKg > 0
+          ? settings.airFreightRatePerKg
+          : 12500.0;
+      shippingFeeNgn = totalWeightKg * rateValue;
+    } else {
+      rateValue = settings.seaFreightRatePerCbm > 0
+          ? settings.seaFreightRatePerCbm
+          : 450000.0;
+      shippingFeeNgn = totalCbm * rateValue;
+    }
+
     const consolidationFeeNgn = 5000.0;
     final grandTotalNgn = shippingFeeNgn + consolidationFeeNgn;
 
@@ -230,8 +250,17 @@ class _ConsolidationReviewPageState
                     const SizedBox(height: 10),
                     _CostRow(
                       label: 'Total Weight',
-                      value: '${totalWeightKg.toStringAsFixed(1)} KG',
+                      value: rawWeightKg < 1.0
+                          ? '${totalWeightKg.toStringAsFixed(1)} KG (Min. 1.0 KG Applied)'
+                          : '${totalWeightKg.toStringAsFixed(1)} KG',
                     ),
+                    if (_shippingMethod == 'sea') ...[
+                      const SizedBox(height: 10),
+                      _CostRow(
+                        label: 'Estimated Volume',
+                        value: '${totalCbm.toStringAsFixed(2)} CBM',
+                      ),
+                    ],
                     if (totalDeclaredUsd > 0) ...[
                       const SizedBox(height: 10),
                       _CostRow(
@@ -241,7 +270,9 @@ class _ConsolidationReviewPageState
                     ],
                     const SizedBox(height: 10),
                     _CostRow(
-                      label: 'Est. Freight Fee ($_shippingMethod.toUpperCase())',
+                      label: _shippingMethod == 'air'
+                          ? 'Air Freight Rate (₦${_currencyFormat.format(rateValue)}/KG)'
+                          : 'Sea Freight Rate (₦${_currencyFormat.format(rateValue)}/CBM)',
                       value: '₦${_currencyFormat.format(shippingFeeNgn.round())}',
                     ),
                     const SizedBox(height: 10),

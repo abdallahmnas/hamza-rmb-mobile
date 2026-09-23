@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,10 +33,11 @@ class _ConsolidationFlowPageState extends ConsumerState<ConsolidationFlowPage> {
     final selectedPackages = availablePackages
         .where((p) => _selectedPackageIds.contains(p.id))
         .toList();
-    final totalWeight = selectedPackages.fold<double>(
+    final rawWeight = selectedPackages.fold<double>(
       0.0,
       (sum, p) => sum + (p.weightKg > 0 ? p.weightKg : 0.5),
     );
+    final totalWeight = selectedPackages.isEmpty ? 0.0 : math.max(1.0, rawWeight);
 
     return Scaffold(
       backgroundColor: AppColors.background,
