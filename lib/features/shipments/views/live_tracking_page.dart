@@ -1,23 +1,139 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme/app_typography.dart';
-import '../../../app/theme/app_colors.dart';
+import 'package:intl/intl.dart';
 
-class LiveTrackingPage extends StatefulWidget {
-  const LiveTrackingPage({super.key});
+import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_typography.dart';
+import '../data/datasources/shipments_remote_data_source.dart';
+import '../presentation/providers/shipments_provider.dart';
+
+class LiveTrackingPage extends ConsumerStatefulWidget {
+  final String? initialTrackingId;
+
+  const LiveTrackingPage({super.key, this.initialTrackingId});
 
   @override
-  State<LiveTrackingPage> createState() => _LiveTrackingPageState();
+  ConsumerState<LiveTrackingPage> createState() => _LiveTrackingPageState();
 }
 
-class _LiveTrackingPageState extends State<LiveTrackingPage> {
-  final TextEditingController _waybillController =
-      TextEditingController(text: 'HZ-AWB-8920412-CN');
+class _LiveTrackingPageState extends ConsumerState<LiveTrackingPage> {
+  late TextEditingController _waybillController;
+  bool _isLoading = false;
+  String? _errorMessage;
+  Map<String, dynamic>? _trackingData;
+
+  @override
+  void initState() {
+    super.initState();
+    _waybillController = TextEditingController(
+      text: widget.initialTrackingId ?? '',
+    );
+
+    Future.microtask(() {
+      _initializeTracking();
+    });
+  }
 
   @override
   void dispose() {
     _waybillController.dispose();
     super.dispose();
+  }
+
+  void _initializeTracking() {
+    if (widget.initialTrackingId != null && widget.initialTrackingId!.isNotEmpty) {
+      _fetchTracking(widget.initialTrackingId!);
+    } else {
+      final shipmentsState = ref.read(shipmentsProvider);
+      if (shipmentsState.packages.isNotEmpty) {
+        final defaultPkg = shipmentsState.packages.first;
+        final trackingNum = defaultPkg.trackingNumber.isNotEmpty
+            ? defaultPkg.trackingNumber
+            : defaultPkg.id;
+        _waybillController.text = trackingNum;
+        _fetchTracking(trackingNum);
+      } else {
+        // If packages are not loaded, fetch them and then track
+        ref.read(shipmentsProvider.notifier).fetchAll().then((_) {
+          if (!mounted) return;
+          final updatedState = ref.read(shipmentsProvider);
+          if (updatedState.packages.isNotEmpty) {
+            final defaultPkg = updatedState.packages.first;
+            final trackingNum = defaultPkg.trackingNumber.isNotEmpty
+                ? defaultPkg.trackingNumber
+                : defaultPkg.id;
+            _waybillController.text = trackingNum;
+            _fetchTracking(trackingNum);
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchTracking(String queryId) async {
+    final cleanId = queryId.trim();
+    if (cleanId.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final remote = ref.read(shipmentsRemoteDataSourceProvider);
+      final data = await remote.fetchTracking(cleanId);
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (data.isNotEmpty) {
+            _trackingData = data;
+            _errorMessage = null;
+          } else {
+            // Check if we have this package locally in shipmentsProvider
+            final localPkg = ref.read(shipmentsProvider).packages.where(
+                  (p) =>
+                      p.trackingNumber.toLowerCase() == cleanId.toLowerCase() ||
+                      p.id.toLowerCase() == cleanId.toLowerCase(),
+                );
+            if (localPkg.isNotEmpty) {
+              final p = localPkg.first;
+              _trackingData = {
+                'trackingNumber': p.trackingNumber.isNotEmpty ? p.trackingNumber : p.id,
+                'courierName': p.courierName,
+                'weightKg': p.weightKg,
+                'cbm': p.cbm,
+                'declaredValueUsd': p.declaredValueUsd,
+                'status': p.status,
+                'photos': p.photos,
+                'originWarehouse': 'Guangzhou Hub (CAN)',
+                'destinationWarehouse': 'Lagos Hub (LOS)',
+                'events': [
+                  {
+                    'title': 'Intake Verified & Weighed',
+                    'location': 'Guangzhou Facility',
+                    'timestamp': p.receivedDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
+                    'isCompleted': true,
+                  },
+                ],
+              };
+            } else {
+              _errorMessage = 'No shipment records found for "$cleanId". Please verify the tracking number.';
+            }
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Failed to load tracking data: ${e.toString()}';
+        });
+      }
+    }
   }
 
   @override
@@ -44,33 +160,45 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
 
                     const SizedBox(height: 16),
 
-                    // Shipment header card
-                    const _ShipmentHeaderCard(),
+                    if (_isLoading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_errorMessage != null)
+                      _buildErrorBanner(_errorMessage!)
+                    else if (_trackingData != null) ...[
+                      // Shipment Header Card
+                      _buildShipmentHeaderCard(_trackingData!),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
-                    // Consolidated Cargo Specs
-                    const _CargoSpecsSection(),
+                      // Consolidated Cargo Specs
+                      _buildCargoSpecsSection(_trackingData!),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
-                    // Checkpoint History
-                    const _CheckpointHistorySection(),
+                      // Checkpoint History Timeline
+                      _buildCheckpointHistorySection(_trackingData!),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
-                    // Proof photos
-                    const _ProofPhotosSection(),
+                      // Proof Photos
+                      _buildProofPhotosSection(_trackingData!),
 
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                    // Action buttons
-                    _buildActionButtons(),
+                      // Action buttons
+                      _buildActionButtons(_trackingData!),
 
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                    // Help banner
-                    _buildHelpBanner(),
+                      // Help banner
+                      _buildHelpBanner(),
+                    ] else
+                      _buildEmptyPrompt(),
                   ],
                 ),
               ),
@@ -85,69 +213,75 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
   Widget _buildAppBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppColors.background,
+      color: AppColors.surface,
       child: Row(
         children: [
-          // Logo
           GestureDetector(
             onTap: () => context.pop(),
             child: Container(
-              width: 32,
-              height: 32,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Center(
-                child: Text(
-                  'HZ',
-                  style: AppTypography.bodySm.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
-                  ),
-                ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: AppColors.onBackground,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'HAMZA RMB',
-                style: AppTypography.bodySm.copyWith(
+                'LIVE TRACK & TRACE',
+                style: AppTypography.labelCaps.copyWith(
                   fontWeight: FontWeight.w800,
-                  fontSize: 9,
-                  letterSpacing: 0.5,
+                  fontSize: 9.5,
+                  letterSpacing: 0.6,
                   color: AppColors.onSurfaceVariant,
                 ),
               ),
               Text(
-                'Live Cargo Tracking',
-                style: AppTypography.headlineMd.copyWith(fontSize: 16),
+                'Cargo Radar',
+                style: AppTypography.headlineMd.copyWith(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
           const Spacer(),
-          IconButton(
-            onPressed: () => context.push('/notifications'),
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.onBackground,
-              size: 22,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDCFCE7),
+              borderRadius: BorderRadius.circular(14),
             ),
-          ),
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: AppColors.secondary,
-            child: Text(
-              'S',
-              style: AppTypography.bodySm.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF16A34A),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'API Live',
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFF16A34A),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -160,111 +294,76 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Label row
-        Row(
-          children: [
-            Text(
-              'LIVE WAYBILL ENQUIRY',
-              style: AppTypography.bodySm.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 9,
-                letterSpacing: 0.8,
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.success,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Global Radar Active',
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.success,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Search field
         Row(
           children: [
             Expanded(
               child: Container(
-                height: 44,
+                height: 48,
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
                 ),
                 child: Row(
                   children: [
                     const SizedBox(width: 12),
-                    const Icon(Icons.search, color: AppColors.onSurfaceVariant, size: 18),
+                    const Icon(Icons.search, color: Color(0xFF64748B), size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _waybillController,
+                        onSubmitted: (val) => _fetchTracking(val),
                         decoration: InputDecoration(
                           border: InputBorder.none,
-                          hintText: 'Enter waybill number...',
+                          hintText: 'Enter waybill, tracking # or batch ID...',
                           hintStyle: AppTypography.bodySm.copyWith(
                             color: const Color(0xFF94A3B8),
-                            fontSize: 12,
+                            fontSize: 13,
                           ),
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
                         style: AppTypography.bodyMd.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
                         ),
                       ),
                     ),
+                    if (_waybillController.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 16, color: Color(0xFF94A3B8)),
+                        onPressed: () {
+                          _waybillController.clear();
+                        },
+                      ),
                   ],
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.radar, color: Colors.white, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Track',
-                    style: AppTypography.bodySm.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
+            GestureDetector(
+              onTap: () => _fetchTracking(_waybillController.text),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.radar_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Track',
+                      style: AppTypography.bodySm.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -273,29 +372,615 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
     );
   }
 
+  Widget _buildEmptyPrompt() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          const Icon(Icons.track_changes_rounded, size: 48, color: Color(0xFF94A3B8)),
+          const SizedBox(height: 12),
+          Text(
+            'Search Any Consignment',
+            style: AppTypography.headlineMd.copyWith(fontSize: 16),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Enter your China domestic waybill, 1688 express code, or batch reference to see live transit events.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodySm.copyWith(color: const Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tracking Enquiry Notice',
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF991B1B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFFB91C1C),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Shipment Header Card ─────────────────────────────────────────────────
+  Widget _buildShipmentHeaderCard(Map<String, dynamic> data) {
+    final trackingNum = data['trackingNumber']?.toString() ??
+        data['id']?.toString() ??
+        '--';
+    final status = data['status']?.toString() ?? 'in_transit';
+    final courier = data['courierName']?.toString() ??
+        data['carrierName']?.toString() ??
+        'Express Cargo';
+    final shippingType = data['shippingType']?.toString() ?? 'Air Freight';
+    final flightNo = data['flightVoyageNo']?.toString() ?? data['flightNo']?.toString();
+
+    final origin = data['originWarehouse']?.toString() ?? 'Guangzhou Hub (CAN)';
+    final dest = data['destinationWarehouse']?.toString() ?? 'Lagos Ikeja Hub (LOS)';
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'CONSIGNMENT REFERENCE',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFF94A3B8),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9.5,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            trackingNum,
+                            style: AppTypography.headlineMd.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 20,
+                            ),
+                          ),
+                          Text(
+                            '$courier • ${shippingType.toUpperCase()}',
+                            style: AppTypography.bodySm.copyWith(
+                              color: const Color(0xFF38BDF8),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _buildStatusBadge(status),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // Flight / Route Bar
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ORIGIN',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFF64748B),
+                              fontSize: 9,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            origin,
+                            style: AppTypography.bodySm.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Icon(
+                            Icons.flight_takeoff_rounded,
+                            color: Color(0xFF38BDF8),
+                            size: 20,
+                          ),
+                          if (flightNo != null)
+                            Text(
+                              flightNo,
+                              style: AppTypography.labelCaps.copyWith(
+                                color: const Color(0xFF38BDF8),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'DESTINATION',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFF64748B),
+                              fontSize: 9,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            dest,
+                            style: AppTypography.bodySm.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color bg = const Color(0xFF0284C7);
+    String label = status.replaceAll('_', ' ').toUpperCase();
+
+    if (status.contains('received') || status.contains('warehouse')) {
+      bg = const Color(0xFF2563EB);
+      label = 'AT CHINA HUB';
+    } else if (status.contains('transit') || status.contains('flight')) {
+      bg = const Color(0xFF0D9488);
+      label = 'IN TRANSIT';
+    } else if (status.contains('arrived') || status.contains('pickup')) {
+      bg = const Color(0xFFD97706);
+      label = 'ARRIVED NIGERIA';
+    } else if (status.contains('delivered')) {
+      bg = const Color(0xFF16A34A);
+      label = 'DELIVERED';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.labelCaps.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: 9.5,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  // ── Cargo Specs Section ──────────────────────────────────────────────────
+  Widget _buildCargoSpecsSection(Map<String, dynamic> data) {
+    final weight = (data['weightKg'] as num?)?.toDouble() ?? 0.0;
+    final cbm = (data['cbm'] as num?)?.toDouble() ?? 0.0;
+    final declaredUsd = (data['declaredValueUsd'] as num?)?.toDouble() ?? 0.0;
+    final desc = data['itemDescription']?.toString() ?? 'General Merchandise / Samples';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Cargo Specifications (Verified API Data)',
+                style: AppTypography.bodyMd.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSpecTile(
+                  label: 'Gross Weight',
+                  value: '${weight > 0 ? weight.toStringAsFixed(2) : "--"} KG',
+                ),
+              ),
+              Expanded(
+                child: _buildSpecTile(
+                  label: 'Volume CBM',
+                  value: '${cbm > 0 ? cbm.toStringAsFixed(3) : "--"} CBM',
+                ),
+              ),
+              Expanded(
+                child: _buildSpecTile(
+                  label: 'Declared Val.',
+                  value: '\$${declaredUsd.toStringAsFixed(0)} USD',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.description_outlined, size: 16, color: Color(0xFF64748B)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    desc,
+                    style: AppTypography.bodySm.copyWith(
+                      color: const Color(0xFF334155),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecTile({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.labelCaps.copyWith(
+              color: const Color(0xFF64748B),
+              fontSize: 9,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: AppTypography.bodyMd.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Checkpoint History ───────────────────────────────────────────────────
+  Widget _buildCheckpointHistorySection(Map<String, dynamic> data) {
+    final rawEvents = data['events'] as List<dynamic>? ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timeline_rounded, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Transit Milestones & Clearance Events',
+                style: AppTypography.bodyMd.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (rawEvents.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
+                'Cargo received and awaiting departure batching.',
+                style: AppTypography.bodySm.copyWith(color: const Color(0xFF64748B)),
+              ),
+            )
+          else
+            ...rawEvents.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final ev = entry.value as Map<String, dynamic>;
+              final title = ev['title']?.toString() ?? ev['status']?.toString() ?? 'Milestone';
+              final desc = ev['description']?.toString() ?? '';
+              final location = ev['location']?.toString() ?? '';
+              final timeRaw = ev['timestamp']?.toString();
+              String timeStr = '';
+              if (timeRaw != null) {
+                final dt = DateTime.tryParse(timeRaw);
+                if (dt != null) {
+                  timeStr = DateFormat('MMM dd, hh:mm a').format(dt);
+                }
+              }
+
+              final isFirst = idx == 0;
+              final isLast = idx == rawEvents.length - 1;
+
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      children: [
+                        Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: isFirst ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        if (!isLast)
+                          Expanded(
+                            child: Container(
+                              width: 2,
+                              color: const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  title,
+                                  style: AppTypography.bodyMd.copyWith(
+                                    fontWeight: isFirst ? FontWeight.w800 : FontWeight.w600,
+                                    color: isFirst ? AppColors.onBackground : const Color(0xFF475569),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                if (timeStr.isNotEmpty)
+                                  Text(
+                                    timeStr,
+                                    style: AppTypography.bodySm.copyWith(
+                                      color: const Color(0xFF94A3B8),
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (location.isNotEmpty || desc.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                location.isNotEmpty && desc.isNotEmpty
+                                    ? '$location — $desc'
+                                    : location.isNotEmpty
+                                        ? location
+                                        : desc,
+                                style: AppTypography.bodySm.copyWith(
+                                  color: const Color(0xFF64748B),
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  // ── Proof Photos ─────────────────────────────────────────────────────────
+  Widget _buildProofPhotosSection(Map<String, dynamic> data) {
+    final rawPhotos = data['photos'] as List<dynamic>? ?? [];
+    if (rawPhotos.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.photo_library_outlined, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Warehouse Intake Proof Photos (${rawPhotos.length})',
+                style: AppTypography.bodyMd.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 80,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: rawPhotos.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (context, idx) {
+                final url = rawPhotos[idx].toString();
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: CachedNetworkImage(
+                    imageUrl: url,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      width: 80,
+                      height: 80,
+                      color: const Color(0xFFF1F5F9),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      width: 80,
+                      height: 80,
+                      color: const Color(0xFFF1F5F9),
+                      child: const Icon(Icons.broken_image_outlined, size: 24),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Action Buttons ───────────────────────────────────────────────────────
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(Map<String, dynamic> data) {
+    final trackingNum = data['trackingNumber']?.toString() ?? '';
     return Row(
       children: [
         Expanded(
           child: SizedBox(
             height: 46,
             child: OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.share_outlined, size: 16),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: trackingNum));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Waybill reference copied to clipboard'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.copy_rounded, size: 16),
               label: Text(
-                'Share Tracking',
+                'Copy Waybill',
                 style: AppTypography.bodySm.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.onBackground,
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -304,22 +989,21 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
         Expanded(
           child: SizedBox(
             height: 46,
-            child: OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.receipt_long_outlined, size: 16),
+            child: ElevatedButton.icon(
+              onPressed: () => context.push('/local-delivery'),
+              icon: const Icon(Icons.local_shipping_outlined, size: 16),
               label: Text(
-                'Waybill Slip',
+                'Doorstep Delivery',
                 style: AppTypography.bodySm.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   fontSize: 12,
+                  color: Colors.white,
                 ),
               ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.onBackground,
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -333,28 +1017,27 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.headset_mic_outlined, color: AppColors.primary, size: 20),
+          const Icon(Icons.headset_mic_outlined, color: AppColors.primary, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Need assistance with this flight?',
+                  'Customs or Clearance Inquiries?',
                   style: AppTypography.bodyMd.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
-                  'Lagos clearance desk is online',
+                  'Lagos & Guangzhou dispatch desks are live',
                   style: AppTypography.bodySm.copyWith(
                     color: AppColors.onSurfaceVariant,
                     fontSize: 11,
@@ -363,821 +1046,11 @@ class _LiveTrackingPageState extends State<LiveTrackingPage> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.secondary,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Chat Now',
-                  style: AppTypography.bodySm.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.arrow_forward, color: Colors.white, size: 12),
-              ],
-            ),
+          TextButton(
+            onPressed: () => context.push('/support-tickets'),
+            child: const Text('Open Ticket'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── SHIPMENT HEADER CARD ───────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _ShipmentHeaderCard extends StatelessWidget {
-  const _ShipmentHeaderCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C2333),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Waybill + status row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Waybill info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'WAYBILL NUMBER',
-                            style: AppTypography.bodySm.copyWith(
-                              color: const Color(0xFF64748B),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 9,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'HZ-AWB-\n8920412-CN',
-                            style: AppTypography.headlineLg.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 22,
-                              height: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Status badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.secondary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'IN TRANSIT •',
-                            style: AppTypography.bodySm.copyWith(
-                              color: AppColors.secondary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 9,
-                            ),
-                          ),
-                          Text(
-                            'FLIGHT CZ-3055',
-                            style: AppTypography.bodySm.copyWith(
-                              color: AppColors.secondary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // Route visualization
-                _buildRouteVisualization(),
-
-                const SizedBox(height: 16),
-
-                // Bottom stats
-                Row(
-                  children: [
-                    _buildStatItem(
-                      Icons.calendar_today_outlined,
-                      'Estimated\nArrival',
-                      'Nov 04,\n2024',
-                    ),
-                    const Spacer(),
-                    _buildStatItem(
-                      Icons.linear_scale,
-                      'Stage 3 / 5',
-                      '(60%)',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Progress bar
-          Container(
-            height: 4,
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
-              color: Color(0xFF2D3748),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 60,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.secondary, Color(0xFF2DD4BF)],
-                      ),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const Expanded(flex: 40, child: SizedBox()),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRouteVisualization() {
-    return Row(
-      children: [
-        // Origin
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D3748),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'CAN • GUANGZHOU',
-                  style: AppTypography.bodySm.copyWith(
-                    color: const Color(0xFF94A3B8),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 8,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Guangzhou\nHub',
-                style: AppTypography.bodyMd.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'Baiyun Int\'l',
-                style: AppTypography.bodySm.copyWith(
-                  color: const Color(0xFF64748B),
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Airplane icon
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Column(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.secondary.withValues(alpha: 0.15),
-                ),
-                child: const Icon(
-                  Icons.flight,
-                  color: AppColors.secondary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Express',
-                style: AppTypography.bodySm.copyWith(
-                  color: AppColors.secondary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 9,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Destination
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D3748),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'LOS • LAGOS',
-                  style: AppTypography.bodySm.copyWith(
-                    color: const Color(0xFF94A3B8),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 8,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Lagos\nHub',
-                style: AppTypography.bodyMd.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  height: 1.2,
-                ),
-                textAlign: TextAlign.right,
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'Ikeja Cargo Depot',
-                style: AppTypography.bodySm.copyWith(
-                  color: const Color(0xFF64748B),
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatItem(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFF64748B), size: 14),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: AppTypography.bodySm.copyWith(
-                color: const Color(0xFF64748B),
-                fontSize: 9,
-                height: 1.3,
-              ),
-            ),
-            Text(
-              value,
-              style: AppTypography.bodySm.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── CARGO SPECS SECTION ────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _CargoSpecsSection extends StatelessWidget {
-  const _CargoSpecsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              const Icon(Icons.inventory_outlined, color: AppColors.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Consolidated Cargo\nSpecs',
-                style: AppTypography.headlineMd.copyWith(fontSize: 16, height: 1.2),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.verified, color: AppColors.success, size: 12),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Verified',
-                      style: AppTypography.bodySm.copyWith(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Specs grid
-          Row(
-            children: [
-              Expanded(
-                child: _buildSpecItem(Icons.scale, 'Gross Weight', '14.50 KG'),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSpecItem(Icons.view_in_ar, 'CBM Volume', '0.062 CBM'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSpecItem(Icons.widgets_outlined, 'Units Packed', '3 Parcels (Ma...'),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSpecItem(Icons.description_outlined, 'Manifest\nContent', 'Electronics/A...'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpecItem(IconData icon, String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.secondary, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTypography.bodySm.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: AppTypography.bodyMd.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── CHECKPOINT HISTORY SECTION ─────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _CheckpointHistorySection extends StatelessWidget {
-  const _CheckpointHistorySection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              const Icon(Icons.timeline, color: AppColors.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Checkpoint History',
-                style: AppTypography.headlineMd.copyWith(fontSize: 16),
-              ),
-              const Spacer(),
-              Text(
-                '5 Events Logged',
-                style: AppTypography.bodySm.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Timeline entries
-          const _CheckpointEntry(
-            dotColor: Color(0xFFEF4444),
-            title: 'Flight Departed CAN',
-            dateTime: 'Nov 02 · 14:30',
-            description:
-                'Departed Guangzhou Baiyun Int\'l Airport aboard commercial flight CZ-3055. En route to transit connection.',
-            location: 'Guangzhou Baiyun Airport (CAN), China',
-            isFirst: true,
-          ),
-          const _CheckpointEntry(
-            dotColor: Color(0xFF2563EB),
-            title: 'Customs Clearance Passed',
-            dateTime: 'Nov 02 · 09:15',
-            description:
-                'China export declaration verified, duty tax processed, and airport security scan completed.',
-          ),
-          const _CheckpointEntry(
-            dotColor: Color(0xFFF59E0B),
-            title: 'Palletized & Weighed',
-            dateTime: 'Nov 01 · 15:40',
-            description:
-                'Secured onto consolidated Air cargo pallet #PL-CAN-9812. Ready for airport handover.',
-          ),
-          const _CheckpointEntry(
-            dotColor: Color(0xFF0D9488),
-            title: 'Warehouse Intake & Inspection',
-            dateTime: 'Nov 01 · 11:20',
-            description:
-                'Received 3 supplier packages. Full visual quality inspection passed and recorded.',
-            hasProof: true,
-            proofText: '3 Proof Photos Attached',
-          ),
-          const _CheckpointEntry(
-            dotColor: Color(0xFF8B5CF6),
-            title: 'Pre-Alert Created',
-            dateTime: 'Oct 31 · 16:00',
-            description:
-                'Customer registered electronic shipment alert via Hamza RMB Mobile Client.',
-            isLast: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CheckpointEntry extends StatelessWidget {
-  final Color dotColor;
-  final String title;
-  final String dateTime;
-  final String description;
-  final String? location;
-  final bool hasProof;
-  final String? proofText;
-  final bool isFirst;
-  final bool isLast;
-
-  const _CheckpointEntry({
-    required this.dotColor,
-    required this.title,
-    required this.dateTime,
-    required this.description,
-    this.location,
-    this.hasProof = false,
-    this.proofText,
-    this.isFirst = false,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline column
-          SizedBox(
-            width: 24,
-            child: Column(
-              children: [
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: dotColor,
-                    border: Border.all(
-                      color: dotColor.withValues(alpha: 0.3),
-                      width: 3,
-                    ),
-                  ),
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      color: const Color(0xFFE2E8F0),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Content
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title + date row
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: AppTypography.bodyMd.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        dateTime,
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                      fontSize: 11,
-                      height: 1.5,
-                    ),
-                  ),
-                  if (location != null) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_outlined,
-                          color: AppColors.onSurfaceVariant,
-                          size: 12,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            location!,
-                            style: AppTypography.bodySm.copyWith(
-                              color: AppColors.secondary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (hasProof && proofText != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEDE9FE),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.photo_library_outlined,
-                            color: Color(0xFF7C3AED),
-                            size: 12,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            proofText!,
-                            style: AppTypography.bodySm.copyWith(
-                              color: const Color(0xFF7C3AED),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ── PROOF PHOTOS SECTION ───────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _ProofPhotosSection extends StatelessWidget {
-  const _ProofPhotosSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              const Icon(Icons.photo_camera_outlined, color: AppColors.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Guangzhou Intake Proofs',
-                style: AppTypography.headlineMd.copyWith(fontSize: 16),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Time-Stamped',
-                  style: AppTypography.bodySm.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 9,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Photo placeholders
-          Row(
-            children: [
-              _buildPhotoPlaceholder(Icons.inventory_2_outlined, 'Package\nCarton'),
-              const SizedBox(width: 10),
-              _buildPhotoPlaceholder(Icons.verified_outlined, 'Weight\nVerification'),
-              const SizedBox(width: 10),
-              _buildPhotoPlaceholder(Icons.qr_code, 'Waybill\nBarcode'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhotoPlaceholder(IconData icon, String label) {
-    return Expanded(
-      child: Container(
-        height: 90,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: AppColors.onSurfaceVariant, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: AppTypography.bodySm.copyWith(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 9,
-                fontWeight: FontWeight.w500,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }

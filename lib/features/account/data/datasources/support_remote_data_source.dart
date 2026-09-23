@@ -43,7 +43,7 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
       if (priority != null && priority.isNotEmpty) {
         body['priority'] = priority.toLowerCase();
       }
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/support/tickets',
         data: body,
       );
@@ -72,7 +72,7 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
   @override
   Future<List<TicketModel>> fetchTickets() async {
     try {
-      final response = await _dio.get('/support/tickets');
+      final response = await _dio.get<dynamic>('/support/tickets');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -93,7 +93,7 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
   @override
   Future<TicketModel> fetchTicketDetails(String id) async {
     try {
-      final response = await _dio.get('/support/tickets/$id');
+      final response = await _dio.get<dynamic>('/support/tickets/$id');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         final tJson = data['data'] ?? data;
@@ -115,7 +115,7 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
     required String message,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/support/tickets/$id/messages',
         data: {'message': message},
       );

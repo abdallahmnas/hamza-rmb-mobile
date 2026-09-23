@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../../shipments/presentation/providers/shipments_provider.dart';
 
 class PreAlertPage extends ConsumerStatefulWidget {
@@ -14,26 +15,21 @@ class PreAlertPage extends ConsumerStatefulWidget {
 }
 
 class _PreAlertPageState extends ConsumerState<PreAlertPage> {
-  String _selectedWarehouse = 'Guangzhou Hub';
+  String? _selectedWarehouse;
   String _selectedCourier = 'SF Express';
   final _trackingController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _valueController = TextEditingController();
   bool _isSubmitting = false;
 
-  final _warehouses = [
-    'Guangzhou Hub',
-    'London Hub',
-    'Houston Hub',
-  ];
-
   final _couriers = [
     'SF Express',
+    'China Post',
+    'EMS',
     'FedEx Express',
     'DHL International',
     'UPS Ground',
-    'China Post',
-    'EMS',
+    'Other Courier',
   ];
 
   @override
@@ -72,21 +68,31 @@ class _PreAlertPageState extends ConsumerState<PreAlertPage> {
 
     try {
       final value = double.tryParse(_valueController.text.trim()) ?? 0.0;
-      await ref.read(shipmentsProvider.notifier).submitPreAlert(
-            trackingNumber: tracking,
+      final success = await ref.read(shipmentsProvider.notifier).submitPreAlert(
+            chineseTrackingNo: tracking,
             courierName: _selectedCourier,
             declaredValueUsd: value,
-            itemDescription: description.isNotEmpty ? description : null,
+            description: description,
           );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pre-alert submitted successfully!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        context.pop();
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pre-alert submitted successfully!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          context.pop();
+        } else {
+          final err = ref.read(shipmentsProvider).error ?? 'Failed to submit pre-alert';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(err.replaceAll('Exception: ', '')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -107,7 +113,21 @@ class _PreAlertPageState extends ConsumerState<PreAlertPage> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authServiceProvider).user;
-    final customerId = user?.customerId ?? 'HZ-USER';
+    final customerId = user?.customerId ?? '';
+    final metadataState = ref.watch(systemMetadataProvider);
+    final settings = metadataState.settings;
+
+    final availableWarehouses = <String>[];
+    if (settings.chinaAirCargoAddressCn.isNotEmpty) {
+      availableWarehouses.add('China Receiving Hub (${settings.chinaAirCargoAddressCn})');
+    }
+    if (settings.nigeriaOfficeAddress.isNotEmpty) {
+      availableWarehouses.add('Nigeria Central Hub (${settings.nigeriaOfficeAddress})');
+    }
+
+    if (_selectedWarehouse == null && availableWarehouses.isNotEmpty) {
+      _selectedWarehouse = availableWarehouses.first;
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -173,10 +193,11 @@ class _PreAlertPageState extends ConsumerState<PreAlertPage> {
                     ),
                     const Spacer(),
                     Text(
-                      customerId,
+                      customerId.isNotEmpty ? customerId : 'Not Assigned',
                       style: AppTypography.bodyMd.copyWith(
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.3,
+                        color: customerId.isNotEmpty ? AppColors.onBackground : AppColors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -209,11 +230,11 @@ class _PreAlertPageState extends ConsumerState<PreAlertPage> {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: _selectedWarehouse.isEmpty
-                        ? null
-                        : _selectedWarehouse,
+                    value: availableWarehouses.contains(_selectedWarehouse)
+                        ? _selectedWarehouse
+                        : (availableWarehouses.isNotEmpty ? availableWarehouses.first : null),
                     hint: Text(
-                      'Select a facility...',
+                      'Select a warehouse...',
                       style: AppTypography.bodySm.copyWith(
                         color: AppColors.onSurfaceVariant,
                       ),
@@ -223,13 +244,14 @@ class _PreAlertPageState extends ConsumerState<PreAlertPage> {
                       Icons.keyboard_arrow_down,
                       color: AppColors.onSurfaceVariant,
                     ),
-                    items: _warehouses
+                    items: availableWarehouses
                         .map(
                           (w) => DropdownMenuItem(
                             value: w,
                             child: Text(
                               w,
-                              style: AppTypography.bodyMd,
+                              style: AppTypography.bodyMd.copyWith(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         )

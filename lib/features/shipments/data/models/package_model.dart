@@ -8,6 +8,7 @@ class PackageModel {
   final double weightKg;
   final double cbm;
   final String status;
+  final String? itemDescription;
   final List<String> photos;
   final DateTime? receivedDate;
 
@@ -21,21 +22,27 @@ class PackageModel {
     this.weightKg = 0.0,
     this.cbm = 0.0,
     this.status = 'pending',
+    this.itemDescription,
     this.photos = const [],
     this.receivedDate,
   });
 
   String get courier => courierName;
+  String get chineseTrackingNo => trackingNumber;
   String get description =>
-      courierName.isNotEmpty ? '$courierName Package' : 'General Parcel';
+      (itemDescription != null && itemDescription!.isNotEmpty)
+          ? itemDescription!
+          : (courierName.isNotEmpty ? '$courierName Package' : 'General Parcel');
   double get weight => weightKg;
   double get declaredValue => declaredValueUsd;
-
 
   factory PackageModel.fromJson(Map<String, dynamic> json) {
     return PackageModel(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      trackingNumber: json['trackingNumber']?.toString() ?? '',
+      trackingNumber: json['chineseTrackingNo']?.toString() ??
+          json['trackingNumber']?.toString() ??
+          json['trackingNo']?.toString() ??
+          '',
       customerId: json['customerId']?.toString() ?? '',
       customerName: json['customerName']?.toString() ?? '',
       courierName: json['courierName']?.toString() ?? '',
@@ -43,6 +50,8 @@ class PackageModel {
       weightKg: (json['weightKg'] as num?)?.toDouble() ?? 0.0,
       cbm: (json['cbm'] as num?)?.toDouble() ?? 0.0,
       status: json['status']?.toString() ?? 'received_cn',
+      itemDescription: json['description']?.toString() ??
+          json['itemDescription']?.toString(),
       photos: (json['photos'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
@@ -56,10 +65,12 @@ class PackageModel {
   Map<String, dynamic> toJson() => {
         'id': id,
         'trackingNumber': trackingNumber,
+        'chineseTrackingNo': trackingNumber,
         'customerId': customerId,
         'customerName': customerName,
         'courierName': courierName,
         'declaredValueUsd': declaredValueUsd,
+        'description': itemDescription,
         'weightKg': weightKg,
         'cbm': cbm,
         'status': status,

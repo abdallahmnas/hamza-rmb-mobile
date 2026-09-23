@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/services/media_upload_service.dart';
 import '../models/exchange_review_data.dart';
 import '../presentation/providers/exchange_provider.dart';
 
@@ -22,6 +23,8 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
   late TextEditingController _beneficiaryController;
   late TextEditingController _accountIdController;
   File? _receiptImage;
+  String? _uploadedImageUrl;
+  bool _isUploadingImage = false;
   final ImagePicker _imagePicker = ImagePicker();
   bool _isSubmitting = false;
 
@@ -36,6 +39,7 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
       text: widget.reviewData.accountId,
     );
     _receiptImage = widget.reviewData.receiptImage;
+    _uploadedImageUrl = widget.reviewData.imageUrl;
   }
 
   @override
@@ -45,10 +49,52 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
+  void _showImageSourceDialog() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Upload QR Code / Account Proof',
+                style: AppTypography.headlineMd.copyWith(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
+                title: const Text('Take Photo with Camera'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage([ImageSource source = ImageSource.gallery]) async {
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 1920,
         maxHeight: 1920,
         imageQuality: 85,
@@ -56,44 +102,60 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
 
       if (pickedFile != null) {
         final ext = pickedFile.path.split('.').last.toLowerCase();
-        final allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+        final allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
 
         if (!allowedExtensions.contains(ext)) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
+              const SnackBar(
                 content: Text(
                   'Unsupported file format. Please select a JPG, PNG, or PDF file.',
-                  style: AppTypography.bodySm.copyWith(color: Colors.white),
                 ),
                 backgroundColor: AppColors.error,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
               ),
             );
           }
           return;
         }
 
+        final file = File(pickedFile.path);
         setState(() {
-          _receiptImage = File(pickedFile.path);
+          _receiptImage = file;
+          _isUploadingImage = true;
+          _uploadedImageUrl = null;
         });
+
+        try {
+          final url = await ref
+              .read(mediaUploadServiceProvider)
+              .uploadImage(file);
+          if (mounted) {
+            setState(() {
+              _uploadedImageUrl = url;
+              _isUploadingImage = false;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isUploadingImage = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Image upload note: $e. Submission will attempt upload.'),
+                backgroundColor: AppColors.primary,
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isUploadingImage = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Unable to access photo library. Please check permissions.',
-              style: AppTypography.bodySm.copyWith(color: Colors.white),
-            ),
+            content: Text('Unable to select photo: $e'),
             backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
           ),
         );
       }
@@ -103,6 +165,8 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
   void _removeImage() {
     setState(() {
       _receiptImage = null;
+      _uploadedImageUrl = null;
+      _isUploadingImage = false;
     });
   }
 
@@ -129,7 +193,19 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
       final fromAmount = double.tryParse(sendCleaned) ?? 0.0;
       final toAmount = double.tryParse(receiveCleaned) ?? 0.0;
 
-      await ref.read(exchangeProvider.notifier).createExchangeRequest(
+      String? qrCodeUrl = _uploadedImageUrl;
+      if (qrCodeUrl == null && _receiptImage != null) {
+        try {
+          qrCodeUrl = await ref
+              .read(mediaUploadServiceProvider)
+              .uploadImage(_receiptImage!);
+          _uploadedImageUrl = qrCodeUrl;
+        } catch (_) {
+          // If upload fails, proceed with null or local fallback
+        }
+      }
+
+      final success = await ref.read(exchangeProvider.notifier).createExchangeRequest(
             fromCurrency: widget.reviewData.sendCurrency,
             toCurrency: widget.reviewData.receiveCurrency,
             fromAmount: fromAmount,
@@ -139,12 +215,19 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
               'account_id': accountId,
               'beneficiary_name': _beneficiaryController.text.trim(),
             },
+            qrCodeUrl: qrCodeUrl,
+            receiptUrl: qrCodeUrl,
           );
+
+      if (!success) {
+        final err = ref.read(exchangeProvider).error;
+        throw Exception(err ?? 'Failed to submit exchange request');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Exchange request submitted successfully!'),
+            content: Text('Exchange request submitted successfully to backend!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -428,7 +511,9 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
 
                     // Rate
                     Text(
-                      'Rate: 1 RMB = 125 NGN',
+                      widget.reviewData.exchangeRate.startsWith('1')
+                          ? 'Rate: ${widget.reviewData.exchangeRate}'
+                          : widget.reviewData.exchangeRate,
                       style: AppTypography.bodySm.copyWith(
                         color: AppColors.onSurfaceVariant,
                         fontSize: 11,
@@ -596,10 +681,12 @@ class _ExchangeReviewPageState extends ConsumerState<ExchangeReviewPage> {
                   _receiptImage != null
                       ? _ImagePreview(
                           image: _receiptImage!,
+                          isUploading: _isUploadingImage,
+                          isUploaded: _uploadedImageUrl != null,
                           onRemove: _removeImage,
-                          onReplace: _pickImage,
+                          onReplace: _showImageSourceDialog,
                         )
-                      : _UploadPlaceholder(onTap: _pickImage),
+                      : _UploadPlaceholder(onTap: _showImageSourceDialog),
                 ],
               ),
             ),
@@ -802,11 +889,15 @@ class _UploadPlaceholder extends StatelessWidget {
 // ── Image Preview ────────────────────────────────────────────────────────────
 class _ImagePreview extends StatelessWidget {
   final File image;
+  final bool isUploading;
+  final bool isUploaded;
   final VoidCallback onRemove;
   final VoidCallback onReplace;
 
   const _ImagePreview({
     required this.image,
+    this.isUploading = false,
+    this.isUploaded = false,
     required this.onRemove,
     required this.onReplace,
   });
@@ -822,40 +913,75 @@ class _ImagePreview extends StatelessWidget {
       child: Column(
         children: [
           // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(11),
-            ),
-            child: Image.file(
-              image,
-              width: double.infinity,
-              height: 180,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(11),
+                ),
+                child: Image.file(
+                  image,
                   width: double.infinity,
                   height: 180,
-                  color: const Color(0xFFF1F5F9),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.qr_code_2,
-                        color: Color(0xFF94A3B8),
-                        size: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: double.infinity,
+                      height: 180,
+                      color: const Color(0xFFF1F5F9),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.qr_code_2,
+                            color: Color(0xFF94A3B8),
+                            size: 40,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'QR code selected',
+                            style: AppTypography.bodySm.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'QR code selected',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
+                    );
+                  },
+                ),
+              ),
+              if (isUploading)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(11),
                       ),
-                    ],
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Uploading to cloud...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                );
-              },
-            ),
+                ),
+            ],
           ),
           // Action bar
           Container(
@@ -870,14 +996,26 @@ class _ImagePreview extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF10B981),
+                Icon(
+                  isUploaded
+                      ? Icons.check_circle
+                      : isUploading
+                          ? Icons.cloud_upload_outlined
+                          : Icons.image_outlined,
+                  color: isUploaded
+                      ? const Color(0xFF10B981)
+                      : isUploading
+                          ? const Color(0xFF3B82F6)
+                          : AppColors.onSurfaceVariant,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'QR code uploaded',
+                  isUploaded
+                      ? 'Uploaded to Cloud'
+                      : isUploading
+                          ? 'Uploading...'
+                          : 'Image selected',
                   style: AppTypography.bodySm.copyWith(
                     color: AppColors.onSurfaceVariant,
                     fontWeight: FontWeight.w500,

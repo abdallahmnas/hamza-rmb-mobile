@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../core/services/media_upload_service.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -21,7 +24,12 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
   final _quantityController = TextEditingController(text: '1');
   final _priceController = TextEditingController();
   final _variantsController = TextEditingController();
+  
+  File? _localImageFile;
+  String? _uploadedImageUrl;
+  bool _isUploadingImage = false;
   bool _isSubmitting = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void dispose() {
@@ -31,6 +39,71 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
     _priceController.dispose();
     _variantsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        final file = File(picked.path);
+        setState(() {
+          _localImageFile = file;
+          _isUploadingImage = true;
+          _uploadedImageUrl = null;
+        });
+
+        try {
+          final url = await ref.read(mediaUploadServiceProvider).uploadImage(file);
+          if (mounted) {
+            setState(() {
+              _uploadedImageUrl = url;
+              _isUploadingImage = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Product image uploaded successfully!'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (uploadError) {
+          if (mounted) {
+            setState(() {
+              _isUploadingImage = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload image: $uploadError'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to select image: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _localImageFile = null;
+      _uploadedImageUrl = null;
+      _isUploadingImage = false;
+    });
   }
 
   Future<void> _handleSubmit() async {
@@ -60,26 +133,59 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
       return;
     }
 
+    if (_isUploadingImage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for product image to finish uploading...'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
-      await ref.read(procurementProvider.notifier).submitRequest(
+      final notesBuffer = StringBuffer();
+      if (variants.isNotEmpty) {
+        notesBuffer.write(variants);
+      }
+      if (price > 0) {
+        if (notesBuffer.isNotEmpty) notesBuffer.write(' | ');
+        notesBuffer.write('Est Price: ¥$price CNY');
+      }
+      if (_uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty) {
+        if (notesBuffer.isNotEmpty) notesBuffer.write('\n');
+        notesBuffer.write('[Product Image: $_uploadedImageUrl]');
+      }
+
+      final notes = notesBuffer.isNotEmpty ? notesBuffer.toString() : null;
+
+      final success = await ref.read(procurementProvider.notifier).submitRequest(
             productUrl: url,
             specifications: name,
             quantity: quantity,
-            notes: variants.isNotEmpty
-                ? '$variants (Est Price: $price CNY)'
-                : 'Est Price: $price CNY',
+            notes: notes,
           );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Procurement request submitted successfully!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        context.pop();
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Procurement request submitted successfully!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          context.pop();
+        } else {
+          final err = ref.read(procurementProvider).error ?? 'Failed to submit procurement request';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(err.replaceAll('Exception: ', '')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -95,6 +201,128 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Widget _buildImageAttachmentSection() {
+    if (_localImageFile != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isUploadingImage ? AppColors.secondary : const Color(0xFF10B981),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                _localImageFile!,
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Product Image Attached',
+                    style: AppTypography.bodyMd.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _isUploadingImage
+                        ? 'Uploading to cloud server...'
+                        : (_uploadedImageUrl != null ? 'Uploaded to cloud ✓' : 'Ready for submission'),
+                    style: AppTypography.bodySm.copyWith(
+                      color: _isUploadingImage
+                          ? AppColors.secondary
+                          : const Color(0xFF10B981),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_isUploadingImage)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                onPressed: _removeImage,
+              ),
+          ],
+        ),
+      );
+    }
+
+    return AppCard(
+      backgroundColor: const Color(0xFFF1F5F9), // Slate-100
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_upload_outlined,
+            color: Color(0xFF64748B),
+            size: 32,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload Product Image or Specs',
+            style: AppTypography.bodyMd.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '(Optional photo attachment for sourcing accuracy)',
+            style: AppTypography.bodySm.copyWith(
+              color: const Color(0xFF64748B),
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _pickImage(ImageSource.camera),
+                icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                label: const Text('Take Photo'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () => _pickImage(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined, size: 16),
+                label: const Text('Gallery'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -179,30 +407,7 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
               ),
               const SizedBox(height: 16),
 
-              AppCard(
-                backgroundColor: const Color(0xFFF1F5F9), // Slate-100
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.cloud_upload_outlined,
-                      color: Color(0xFF94A3B8),
-                      size: 32,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Upload Product Image or Specs',
-                      style: AppTypography.bodyMd
-                          .copyWith(fontWeight: FontWeight.w500),
-                    ),
-                    Text(
-                      '(Optional attachment for sourcing)',
-                      style: AppTypography.bodySm
-                          .copyWith(color: const Color(0xFF94A3B8)),
-                    ),
-                  ],
-                ),
-              ),
+              _buildImageAttachmentSection(),
 
               const SizedBox(height: 32),
               AppButton.primary(
@@ -219,4 +424,5 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
     );
   }
 }
+
 

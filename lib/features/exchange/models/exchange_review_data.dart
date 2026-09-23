@@ -12,6 +12,7 @@ class ExchangeReviewData {
   final String beneficiaryName;
   final String accountId;
   final File? receiptImage;
+  final String? imageUrl;
 
   const ExchangeReviewData({
     required this.sendAmount,
@@ -23,6 +24,7 @@ class ExchangeReviewData {
     required this.beneficiaryName,
     required this.accountId,
     this.receiptImage,
+    this.imageUrl,
   });
 
   ExchangeReviewData copyWith({
@@ -36,6 +38,7 @@ class ExchangeReviewData {
     String? accountId,
     File? receiptImage,
     bool clearReceiptImage = false,
+    String? imageUrl,
   }) {
     return ExchangeReviewData(
       sendAmount: sendAmount ?? this.sendAmount,
@@ -48,6 +51,7 @@ class ExchangeReviewData {
       accountId: accountId ?? this.accountId,
       receiptImage:
           clearReceiptImage ? null : (receiptImage ?? this.receiptImage),
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme/app_typography.dart';
+import 'package:intl/intl.dart';
+
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_typography.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../models/exchange_review_data.dart';
 
@@ -15,55 +17,93 @@ class ExchangePage extends ConsumerStatefulWidget {
 }
 
 class _ExchangePageState extends ConsumerState<ExchangePage> {
-  final _sendController = TextEditingController(text: '100,000');
-  final _receiveController = TextEditingController(text: '437.64');
+  final _sendController = TextEditingController(text: '100000');
+  final _cnyController = TextEditingController();
+  bool _isUpdating = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _recalculate();
+    Future.microtask(() {
+      ref.read(systemMetadataProvider.notifier).refreshAll();
+      _calculateFromNgn(_sendController.text);
     });
   }
 
   @override
   void dispose() {
     _sendController.dispose();
-    _receiveController.dispose();
+    _cnyController.dispose();
     super.dispose();
   }
 
   double _getEffectiveRate() {
     final meta = ref.read(systemMetadataProvider);
-    final r = meta.exchangeRate?.rate ?? 228.50;
-    return r > 0 ? r : 228.50;
+    final cnySetting = meta.settings.cnyExchangeRate;
+    if (cnySetting > 0) return cnySetting;
+    final platformRate = meta.exchangeRate.platformRate;
+    if (platformRate > 0) return platformRate;
+    return 215.0;
   }
 
-  void _recalculate() {
+  void _calculateFromNgn(String value) {
+    if (_isUpdating) return;
+    _isUpdating = true;
     final rate = _getEffectiveRate();
-    final cleaned = _sendController.text.replaceAll(',', '');
-    final amountNgn = double.tryParse(cleaned) ?? 0;
-    if (rate > 0) {
+    final cleaned = value.replaceAll(',', '').trim();
+    final amountNgn = double.tryParse(cleaned) ?? 0.0;
+    if (rate > 0 && amountNgn > 0) {
       final cny = amountNgn / rate;
-      _receiveController.text = cny.toStringAsFixed(2);
+      _cnyController.text = cny.toStringAsFixed(2);
+    } else {
+      _cnyController.text = '';
     }
+    _isUpdating = false;
+    setState(() {});
   }
 
-  void _onSendAmountChanged(String value) {
+  void _calculateFromCny(String value) {
+    if (_isUpdating) return;
+    _isUpdating = true;
     final rate = _getEffectiveRate();
-    final cleaned = value.replaceAll(',', '');
-    final amountNgn = double.tryParse(cleaned) ?? 0;
-    if (rate > 0) {
-      final cny = amountNgn / rate;
-      _receiveController.text = cny.toStringAsFixed(2);
+    final cleaned = value.replaceAll(',', '').trim();
+    final amountCny = double.tryParse(cleaned) ?? 0.0;
+    if (rate > 0 && amountCny > 0) {
+      final ngn = amountCny * rate;
+      _sendController.text = ngn.toStringAsFixed(2);
+    } else {
+      _sendController.text = '';
     }
+    _isUpdating = false;
+    setState(() {});
+  }
+
+  void _applyPresetAmount(double amount) {
+    _sendController.text = amount.toStringAsFixed(0);
+    _calculateFromNgn(_sendController.text);
   }
 
   void _navigateToReview() {
     final rate = _getEffectiveRate();
+    final cleanedNgn = _sendController.text.replaceAll(',', '').trim();
+    final amountNgn = double.tryParse(cleanedNgn) ?? 0.0;
+
+    final cleanedCny = _cnyController.text.replaceAll(',', '').trim();
+    final amountCny = double.tryParse(cleanedCny) ?? 0.0;
+
+    if (amountNgn <= 0 || amountCny <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid amount to swap'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     final data = ExchangeReviewData(
-      sendAmount: _sendController.text,
-      receiveAmount: _receiveController.text,
+      sendAmount: NumberFormat('#,##0.00').format(amountNgn),
+      receiveAmount: NumberFormat('#,##0.00').format(amountCny),
       sendCurrency: 'NGN',
       receiveCurrency: 'CNY',
       exchangeRate: '1 CNY = ₦${rate.toStringAsFixed(2)} NGN',
@@ -77,8 +117,17 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
   @override
   Widget build(BuildContext context) {
     final meta = ref.watch(systemMetadataProvider);
-    final liveRate = meta.exchangeRate?.rate ?? 228.50;
+    final liveRate = meta.settings.cnyExchangeRate > 0
+        ? meta.settings.cnyExchangeRate
+        : meta.exchangeRate.platformRate > 0
+            ? meta.exchangeRate.platformRate
+            : 215.0;
+    final usdRate = meta.settings.usdExchangeRate > 0
+        ? meta.settings.usdExchangeRate
+        : 1550.0;
+
     final liveRateStr = '₦${liveRate.toStringAsFixed(2)}';
+    final usdRateStr = '₦${usdRate.toStringAsFixed(2)}';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -86,6 +135,10 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
         title: Text('Currency Exchange', style: AppTypography.headlineMd),
         backgroundColor: AppColors.surface,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => context.pop(),
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -98,7 +151,7 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Exchange Rates',
+                    'Live Exchange Rates',
                     style: AppTypography.headlineMd.copyWith(fontSize: 18),
                   ),
                   const SizedBox(height: 6),
@@ -121,7 +174,7 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Live market data active',
+                        'Live market data synchronized with China Hub',
                         style: AppTypography.bodySm.copyWith(
                           color: AppColors.onSurfaceVariant,
                           fontSize: 12,
@@ -145,8 +198,8 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                       fromCurrency: 'CNY',
                       toCurrency: 'NGN',
                       rate: liveRateStr,
-                      change: '+0.12%',
-                      changePeriod: '24h',
+                      change: 'Platform Rate',
+                      changePeriod: 'Live',
                       isPositive: true,
                       gradientColors: const [
                         Color(0xFF10B981),
@@ -155,15 +208,15 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: _RateCard(
                       fromCurrency: 'USD',
                       toCurrency: 'NGN',
-                      rate: '₦1,550.00',
-                      change: '-0.05%',
-                      changePeriod: '24h',
-                      isPositive: false,
-                      gradientColors: [
+                      rate: usdRateStr,
+                      change: 'Official Rate',
+                      changePeriod: 'Daily',
+                      isPositive: true,
+                      gradientColors: const [
                         Color(0xFF3B82F6),
                         Color(0xFF2563EB),
                       ],
@@ -172,7 +225,6 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                 ],
               ),
             ),
-
 
             const SizedBox(height: 24),
 
@@ -183,10 +235,10 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F172A),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF0F172A).withValues(alpha: 0.3),
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.35),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -199,25 +251,41 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Quick Convert',
-                          style: AppTypography.bodyLg.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF10B981),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Instant Calculator',
+                              style: AppTypography.bodyLg.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
                         ),
                         Container(
-                          width: 32,
-                          height: 32,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: Colors.white.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(
-                            Icons.history,
-                            color: Colors.white70,
-                            size: 18,
+                          child: Text(
+                            'Alipay / WeChat / Bank',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFF94A3B8),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
@@ -226,13 +294,26 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                     const SizedBox(height: 20),
 
                     // You Send
-                    Text(
-                      'You Send',
-                      style: AppTypography.bodySm.copyWith(
-                        color: const Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'You Send (Nigerian Naira)',
+                          style: AppTypography.bodySm.copyWith(
+                            color: const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'NGN',
+                          style: AppTypography.labelCaps.copyWith(
+                            color: const Color(0xFF38BDF8),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -241,8 +322,8 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: const Color(0xFF334155),
                           width: 1,
@@ -253,13 +334,15 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                           Expanded(
                             child: TextField(
                               controller: _sendController,
-                              onChanged: _onSendAmountChanged,
-                              keyboardType: TextInputType.number,
+                              onChanged: _calculateFromNgn,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
                               textAlign: TextAlign.left,
                               style: AppTypography.bodyLg.copyWith(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 20,
                               ),
                               decoration: const InputDecoration(
                                 filled: true,
@@ -267,12 +350,14 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
                                 focusedBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
+                                contentPadding: EdgeInsets.symmetric(vertical: 12),
                                 isDense: true,
+                                hintText: '0.00',
+                                hintStyle: TextStyle(color: Color(0xFF64748B)),
                               ),
                               inputFormatters: [
                                 FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9,.]'),
+                                  RegExp(r'[0-9.]'),
                                 ),
                               ],
                             ),
@@ -281,77 +366,126 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                           const _CurrencyBadge(
                             currency: 'NGN',
                             color: Color(0xFF10B981),
-                            icon: Icons.flag_circle,
+                            icon: Icons.account_balance_wallet_outlined,
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 14),
-
-                    // Swap Icon
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF334155),
-                            width: 1,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.swap_vert,
-                          color: Color(0xFF94A3B8),
-                          size: 20,
-                        ),
+                    // Quick presets
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [50000.0, 100000.0, 500000.0, 1000000.0].map((amt) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: GestureDetector(
+                              onTap: () => _applyPresetAmount(amt),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF334155),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '₦${NumberFormat.compact().format(amt)}',
+                                  style: AppTypography.labelCaps.copyWith(
+                                    color: const Color(0xFFCBD5E1),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
-                    // Recipient Gets
-                    Text(
-                      'Recipient Gets',
-                      style: AppTypography.bodySm.copyWith(
-                        color: const Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
+                    // Real-Time Recipient Gets
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Recipient Gets (Chinese Yuan)',
+                          style: AppTypography.bodySm.copyWith(
+                            color: const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'EDITABLE / REAL-TIME',
+                          style: AppTypography.labelCaps.copyWith(
+                            color: const Color(0xFF10B981),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 9,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
-                        vertical: 12,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E293B),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: const Color(0xFF334155),
-                          width: 1,
+                          color: const Color(0xFF10B981).withValues(alpha: 0.6),
+                          width: 1.5,
                         ),
                       ),
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              _receiveController.text,
-                              style: AppTypography.bodyLg.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 18,
+                            child: TextField(
+                              controller: _cnyController,
+                              onChanged: _calculateFromCny,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
                               ),
+                              textAlign: TextAlign.left,
+                              style: AppTypography.bodyLg.copyWith(
+                                color: const Color(0xFF34D399),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 20,
+                              ),
+                              decoration: const InputDecoration(
+                                filled: true,
+                                fillColor: Colors.transparent,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(vertical: 12),
+                                isDense: true,
+                                hintText: '0.00',
+                                hintStyle: TextStyle(
+                                  color: Color(0xFF047857),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[0-9.]'),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 8),
                           const _CurrencyBadge(
                             currency: 'CNY',
                             color: Color(0xFFEF4444),
-                            icon: Icons.flag_circle,
+                            icon: Icons.currency_yen_rounded,
                           ),
                         ],
                       ),
@@ -361,44 +495,44 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
 
                     // Exchange Rate Info
                     _InfoRow(
-                      icon: Icons.copyright,
-                      label: 'Exchange Rate',
-                      value: '1 NGN = 0.0054 CNY',
+                      icon: Icons.trending_up_rounded,
+                      label: 'Applied Rate',
+                      value: '1 CNY = ₦${liveRate.toStringAsFixed(2)} NGN',
                       valueStyle: AppTypography.bodySm.copyWith(
                         color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     _InfoRow(
-                      label: 'Platform Fee',
-                      value: 'Waived',
+                      icon: Icons.check_circle_outline,
+                      label: 'Settlement Fee',
+                      value: '₦0.00 (Zero Hidden Fee)',
                       valueStyle: AppTypography.bodySm.copyWith(
                         color: AppColors.success,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11.5,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     _InfoRow(
-                      label: 'Estimated Arrival',
+                      icon: Icons.flash_on_rounded,
+                      label: 'Payout Speed',
                       valueWidget: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(
-                            0xFFEF4444,
-                          ).withValues(alpha: 0.15),
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          'Instant',
+                          '15-30 Mins Direct Deposit',
                           style: AppTypography.bodySm.copyWith(
-                            color: const Color(0xFFEF4444),
-                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF34D399),
+                            fontWeight: FontWeight.w800,
                             fontSize: 11,
                           ),
                         ),
@@ -413,19 +547,19 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
 
             // ── Request Exchange Button ─────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
               child: SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: 54,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+                      colors: [Color(0xFF0F473E), Color(0xFF115E59)],
                     ),
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                        color: const Color(0xFF0F473E).withValues(alpha: 0.35),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -438,22 +572,22 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
                       shadowColor: Colors.transparent,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Request Exchange',
+                          'Proceed to Recipient Details',
                           style: AppTypography.bodyLg.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             color: Colors.white,
                             fontSize: 15,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const Icon(Icons.arrow_forward, size: 18),
+                        const Icon(Icons.arrow_forward_rounded, size: 18),
                       ],
                     ),
                   ),
@@ -493,7 +627,7 @@ class _RateCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
@@ -506,7 +640,6 @@ class _RateCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Currency pair badge
           Row(
             children: [
               Container(
@@ -519,7 +652,7 @@ class _RateCard extends StatelessWidget {
                   fromCurrency,
                   style: AppTypography.bodySm.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     fontSize: 10,
                   ),
                 ),
@@ -541,7 +674,7 @@ class _RateCard extends StatelessWidget {
                   toCurrency,
                   style: AppTypography.bodySm.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     fontSize: 10,
                   ),
                 ),
@@ -549,21 +682,19 @@ class _RateCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          // Rate value
           Text(
             rate,
             style: AppTypography.headlineMd.copyWith(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 4),
-          // Change indicator
           Text(
-            '$change $changePeriod',
+            '$change • $changePeriod',
             style: AppTypography.bodySm.copyWith(
               color: isPositive ? AppColors.success : AppColors.error,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               fontSize: 11,
             ),
           ),
@@ -641,7 +772,7 @@ class _InfoRow extends StatelessWidget {
           label,
           style: AppTypography.bodySm.copyWith(
             color: const Color(0xFF94A3B8),
-            fontSize: 11,
+            fontSize: 11.5,
           ),
         ),
         const Spacer(),

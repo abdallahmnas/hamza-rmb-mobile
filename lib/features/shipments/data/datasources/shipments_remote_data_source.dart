@@ -8,10 +8,10 @@ import '../models/package_model.dart';
 abstract class ShipmentsRemoteDataSource {
   Future<List<PackageModel>> fetchPackages();
   Future<PackageModel> submitPreAlert({
-    required String trackingNumber,
+    required String chineseTrackingNo,
     required String courierName,
     required double declaredValueUsd,
-    String? itemDescription,
+    required String description,
   });
   Future<List<ConsolidationModel>> fetchConsolidations();
   Future<ConsolidationModel> createConsolidation({
@@ -31,7 +31,7 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
   @override
   Future<List<PackageModel>> fetchPackages() async {
     try {
-      final response = await _dio.get('/shipments/packages');
+      final response = await _dio.get<dynamic>('/shipments/packages');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -51,19 +51,19 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
 
   @override
   Future<PackageModel> submitPreAlert({
-    required String trackingNumber,
+    required String chineseTrackingNo,
     required String courierName,
     required double declaredValueUsd,
-    String? itemDescription,
+    required String description,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/shipments/pre-alert',
         data: {
-          'trackingNumber': trackingNumber,
+          'chineseTrackingNo': chineseTrackingNo,
           'courierName': courierName,
           'declaredValueUsd': declaredValueUsd,
-          if (itemDescription != null) 'itemDescription': itemDescription,
+          'description': description,
         },
       );
       final data = response.data;
@@ -74,10 +74,11 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
         }
       }
       return PackageModel(
-        id: 'pkg-temp',
-        trackingNumber: trackingNumber,
+        id: 'pkg-temp-${DateTime.now().millisecondsSinceEpoch}',
+        trackingNumber: chineseTrackingNo,
         courierName: courierName,
         declaredValueUsd: declaredValueUsd,
+        itemDescription: description,
         status: 'pre_alert_submitted',
         receivedDate: DateTime.now(),
       );
@@ -91,7 +92,7 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
   @override
   Future<List<ConsolidationModel>> fetchConsolidations() async {
     try {
-      final response = await _dio.get('/shipments/consolidations');
+      final response = await _dio.get<dynamic>('/shipments/consolidations');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -117,7 +118,7 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
     required String paymentMethod,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/shipments/consolidations',
         data: {
           'packageIds': packageIds,
@@ -151,7 +152,7 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
   @override
   Future<Map<String, dynamic>> fetchTracking(String id) async {
     try {
-      final response = await _dio.get('/shipments/tracking/$id');
+      final response = await _dio.get<dynamic>('/shipments/tracking/$id');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         return (data['data'] as Map<String, dynamic>?) ?? data;

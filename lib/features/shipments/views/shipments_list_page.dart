@@ -335,7 +335,10 @@ class _ShipmentsListPageState extends ConsumerState<ShipmentsListPage> {
                       const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     return GestureDetector(
-                      onTap: () => context.push('/shipment-details'),
+                      onTap: () => context.push(
+                        '/live-tracking',
+                        extra: displayItems[index].waybill,
+                      ),
                       child: _ShipmentCard(item: displayItems[index]),
                     );
                   },

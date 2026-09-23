@@ -10,6 +10,8 @@ abstract class ExchangeRemoteDataSource {
     required String rmbDestType,
     required String rmbDestAccount,
     required String rmbDestName,
+    String? qrCodeUrl,
+    String? receiptUrl,
   });
 
   Future<List<ExchangeRequestModel>> fetchExchangeRequests();
@@ -26,15 +28,19 @@ class ExchangeRemoteDataSourceImpl implements ExchangeRemoteDataSource {
     required String rmbDestType,
     required String rmbDestAccount,
     required String rmbDestName,
+    String? qrCodeUrl,
+    String? receiptUrl,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/exchanges/request',
         data: {
           'amountNaira': amountNaira,
           'rmbDestType': rmbDestType,
           'rmbDestAccount': rmbDestAccount,
           'rmbDestName': rmbDestName,
+          if (qrCodeUrl != null && qrCodeUrl.isNotEmpty) 'qrCodeUrl': qrCodeUrl,
+          if (receiptUrl != null && receiptUrl.isNotEmpty) 'receiptUrl': receiptUrl,
         },
       );
       final data = response.data;
@@ -52,6 +58,8 @@ class ExchangeRemoteDataSourceImpl implements ExchangeRemoteDataSource {
         rmbDestType: rmbDestType,
         rmbDestAccount: rmbDestAccount,
         rmbDestName: rmbDestName,
+        qrCodeUrl: qrCodeUrl,
+        receiptUrl: receiptUrl,
         createdAt: DateTime.now(),
       );
     } on DioException catch (e) {
@@ -64,7 +72,7 @@ class ExchangeRemoteDataSourceImpl implements ExchangeRemoteDataSource {
   @override
   Future<List<ExchangeRequestModel>> fetchExchangeRequests() async {
     try {
-      final response = await _dio.get('/exchanges/requests');
+      final response = await _dio.get<dynamic>('/exchanges/requests');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {

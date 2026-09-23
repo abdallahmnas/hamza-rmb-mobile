@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../home/data/models/banner_model.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
+import '../../shipments/presentation/providers/shipments_provider.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -41,6 +43,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           onRefresh: () async {
             await Future.wait([
               ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true),
+              ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true),
               if (isLoggedIn) ref.read(authServiceProvider.notifier).refreshProfile(),
             ]);
           },
@@ -99,9 +102,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             .join()
         : 'HZ';
 
-    final cnyRate = metadataState.exchangeRate.platformRate > 0
-        ? metadataState.exchangeRate.platformRate
-        : metadataState.settings.cnyExchangeRate;
+    final cnyRate = metadataState.settings.cnyExchangeRate > 0
+        ? metadataState.settings.cnyExchangeRate
+        : (metadataState.exchangeRate.platformRate > 0
+            ? metadataState.exchangeRate.platformRate
+            : 215.0);
 
     return Row(
       children: [
@@ -310,7 +315,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   ) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: const Color(0xFF0A0F14),
         borderRadius: BorderRadius.circular(16),
@@ -324,6 +329,49 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ),
       child: Stack(
         children: [
+          // Background Network Image (Cached)
+          if (banner.imageUrl.isNotEmpty)
+            Positioned.fill(
+              child: CachedNetworkImage(
+                imageUrl: banner.imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: const Color(0xFF0F172A),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF2DD4BF),
+                      ),
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+
+          // Gradient Overlay for High Contrast Legibility
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.88),
+                    Colors.black.withValues(alpha: 0.70),
+                    Colors.black.withValues(alpha: 0.35),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Ambient Teal Glow
           Positioned(
             right: -20,
             bottom: -30,
@@ -336,92 +384,117 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2DD4BF),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'PROMO SPECIAL',
-                      style: AppTypography.labelCaps.copyWith(
-                        color: const Color(0xFF042F2E),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 9.5,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.campaign_rounded,
-                    color: Color(0xFF2DD4BF),
-                    size: 20,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(
-                banner.title,
-                style: AppTypography.headlineMd.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 5),
-              Text(
-                banner.subtitle,
-                style: AppTypography.bodySm.copyWith(
-                  color: const Color(0xFF94A3B8),
-                  fontSize: 12,
-                  height: 1.35,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () {
-                  if (banner.targetScreen == 'air_freight') {
-                    context.push('/air-freight');
-                  } else if (banner.targetScreen == 'sea_freight') {
-                    context.push('/sea-freight');
-                  } else {
-                    context.push('/air-freight');
-                  }
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+
+          // Banner Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Explore now',
-                      style: AppTypography.bodySm.copyWith(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
                         color: const Color(0xFF2DD4BF),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'PROMO SPECIAL',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF042F2E),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 9.5,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 4),
                     const Icon(
-                      Icons.arrow_forward_rounded,
+                      Icons.campaign_rounded,
                       color: Color(0xFF2DD4BF),
-                      size: 15,
+                      size: 20,
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Text(
+                  banner.title,
+                  style: AppTypography.headlineMd.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  banner.subtitle,
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFFCBD5E1),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () {
+                    final target = banner.targetScreen?.toLowerCase();
+                    switch (target) {
+                      case 'air_freight':
+                        context.push('/air-freight');
+                        break;
+                      case 'sea_freight':
+                        context.push('/sea-freight');
+                        break;
+                      case 'exchange':
+                      case 'rmb_exchange':
+                        context.push('/exchange');
+                        break;
+                      case 'consolidation':
+                      case 'consolidate':
+                        context.push('/consolidate');
+                        break;
+                      case 'buy_for_me':
+                      case 'procurement':
+                        context.push('/buy-for-me');
+                        break;
+                      case 'local_delivery':
+                      case 'delivery':
+                        context.push('/local-delivery');
+                        break;
+                      default:
+                        context.push('/air-freight');
+                    }
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Explore now',
+                        style: AppTypography.bodySm.copyWith(
+                          color: const Color(0xFF2DD4BF),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Color(0xFF2DD4BF),
+                        size: 15,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -784,7 +857,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 badgeText: 'DOORSTEP',
                 icon: Icons.local_shipping_outlined,
                 gradientColors: const [Color(0xFF7C3AED), Color(0xFF8B5CF6)],
-                onTap: () => _showDeliveryDialog(context),
+                onTap: () => context.push('/local-delivery'),
               ),
             ),
           ],
@@ -1155,6 +1228,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   // ── 6. Live Shipment Card ─────────────────────────────────────────────────
   Widget _buildLiveShipmentSection(BuildContext context) {
+    final shipmentsState = ref.watch(shipmentsProvider);
+    final packages = shipmentsState.packages;
+    final totalCount = packages.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1183,7 +1260,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             GestureDetector(
               onTap: () => context.push('/track'),
               child: Text(
-                'VIEW ALL (4)',
+                totalCount > 0 ? 'VIEW ALL ($totalCount)' : 'ALL SHIPMENTS',
                 style: AppTypography.labelCaps.copyWith(
                   color: const Color(0xFF0284C7),
                   fontWeight: FontWeight.w800,
@@ -1196,296 +1273,367 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ),
         const SizedBox(height: 12),
 
-        // Route Card
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top row tags
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
+        if (packages.isNotEmpty) ...[
+          // Route Card with real data
+          Builder(
+            builder: (context) {
+              final pkg = packages.first;
+              final statusUpper = pkg.status.replaceAll('_', ' ').toUpperCase();
+              final courier = pkg.courierName.isNotEmpty ? pkg.courierName : 'China Express';
+              final weightText = pkg.weightKg > 0 ? '${pkg.weightKg.toStringAsFixed(1)} kg' : 'Awaiting scale';
+
+              Color statusColor;
+              Color statusBg;
+              switch (pkg.status.toLowerCase()) {
+                case 'delivered':
+                case 'arrived_ng':
+                  statusColor = const Color(0xFF16A34A);
+                  statusBg = const Color(0xFFDCFCE7);
+                  break;
+                case 'in_transit':
+                case 'in_flight':
+                case 'clearing_customs':
+                  statusColor = const Color(0xFF0284C7);
+                  statusBg = const Color(0xFFE0F2FE);
+                  break;
+                default:
+                  statusColor = const Color(0xFFB45309);
+                  statusBg = const Color(0xFFFEF3C7);
+              }
+
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top row tags
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                courier.toUpperCase(),
+                                style: AppTypography.labelCaps.copyWith(
+                                  color: const Color(0xFF0369A1),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              pkg.trackingNumber.isNotEmpty ? pkg.trackingNumber : pkg.id,
+                              style: AppTypography.labelCaps.copyWith(
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2FE),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'AIR-EXPRESS',
-                          style: AppTypography.labelCaps.copyWith(
-                            color: const Color(0xFF0369A1),
-                            fontWeight: FontWeight.w800,
-                            fontSize: 9,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'HZ-8839-LOS',
-                        style: AppTypography.labelCaps.copyWith(
-                          color: const Color(0xFF64748B),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'IN FLIGHT',
-                      style: AppTypography.labelCaps.copyWith(
-                        color: const Color(0xFFB45309),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Route Display: Origin -> Airplane/Bar -> Destination
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Origin
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CAN Guangzhou',
-                        style: AppTypography.bodySm.copyWith(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: AppColors.onBackground,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Departed Nov 20',
-                        style: AppTypography.bodySm.copyWith(
-                          color: const Color(0xFF64748B),
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Center Route Bar
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Column(
-                        children: [
-                          Text(
-                            'ETA: 18h',
+                          decoration: BoxDecoration(
+                            color: statusBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusUpper,
                             style: AppTypography.labelCaps.copyWith(
-                              color: const Color(0xFF0D9488),
+                              color: statusColor,
                               fontWeight: FontWeight.w800,
                               fontSize: 9,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF0D9488),
-                                  shape: BoxShape.circle,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Route Display: Origin -> Airplane/Bar -> Destination
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Origin
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'China Hub',
+                              style: AppTypography.bodySm.copyWith(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: AppColors.onBackground,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              pkg.receivedDate != null
+                                  ? 'Logged ${pkg.receivedDate!.month}/${pkg.receivedDate!.day}'
+                                  : 'Intake Recorded',
+                              style: AppTypography.bodySm.copyWith(
+                                color: const Color(0xFF64748B),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Center Route Bar
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Column(
+                              children: [
+                                Text(
+                                  statusUpper,
+                                  style: AppTypography.labelCaps.copyWith(
+                                    color: const Color(0xFF0D9488),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 9,
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Container(
-                                  height: 2,
-                                  color: const Color(0xFF0D9488),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF0D9488),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        height: 2,
+                                        color: const Color(0xFF0D9488),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.flight,
+                                      color: Color(0xFF0D9488),
+                                      size: 14,
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        height: 2,
+                                        color: const Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFCBD5E1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const Icon(
-                                Icons.flight,
-                                color: Color(0xFF0D9488),
-                                size: 14,
-                              ),
-                              Expanded(
-                                child: Container(
-                                  height: 2,
-                                  color: const Color(0xFFCBD5E1),
+                                const SizedBox(height: 4),
+                                Text(
+                                  weightText,
+                                  style: AppTypography.bodySm.copyWith(
+                                    color: const Color(0xFF94A3B8),
+                                    fontSize: 9,
+                                  ),
                                 ),
-                              ),
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFCBD5E1),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '2.4 kg · 3 pkgs',
-                            style: AppTypography.bodySm.copyWith(
-                              color: const Color(0xFF94A3B8),
-                              fontSize: 9,
+                        ),
+
+                        // Destination
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'LOS Hub',
+                              style: AppTypography.bodySm.copyWith(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: AppColors.onBackground,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Nigeria Dispatch',
+                              style: AppTypography.bodySm.copyWith(
+                                color: const Color(0xFF64748B),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Bottom bar container: Description + "TRACK LIVE"
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F7FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.inventory_2_outlined,
+                                  color: Color(0xFF0284C7),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    pkg.description,
+                                    style: AppTypography.bodySm.copyWith(
+                                      color: AppColors.onBackground,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => context.push('/live-tracking'),
+                            child: Text(
+                              'TRACK LIVE',
+                              style: AppTypography.labelCaps.copyWith(
+                                color: const Color(0xFF0284C7),
+                                fontWeight: FontWeight.w900,
+                                fontSize: 10,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  // Destination
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'LOS Ikeja Hub',
-                        style: AppTypography.bodySm.copyWith(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: AppColors.onBackground,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Expected Nov 22',
-                        style: AppTypography.bodySm.copyWith(
-                          color: const Color(0xFF64748B),
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Bottom bar container: "Electronics & Textile Samples" + "TRACK LIVE"
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                  ],
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F7FF),
-                  borderRadius: BorderRadius.circular(10),
+              );
+            },
+          ),
+        ] else ...[
+          // Empty State Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF1F5F9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: Color(0xFF64748B),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No Active Shipments in Transit',
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onBackground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Pre-alert incoming packages or enter a tracking number to monitor live shipment status.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.inventory_2_outlined,
-                          color: Color(0xFF0284C7),
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Electronics & Textile Samples',
-                          style: AppTypography.bodySm.copyWith(
-                            color: AppColors.onBackground,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                    OutlinedButton.icon(
+                      onPressed: () => context.push('/pre-alert'),
+                      icon: const Icon(Icons.add_alert_outlined, size: 16),
+                      label: const Text('Pre-Alert Cargo'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
-                    GestureDetector(
-                      onTap: () => context.push('/live-tracking'),
-                      child: Text(
-                        'TRACK LIVE',
-                        style: AppTypography.labelCaps.copyWith(
-                          color: const Color(0xFF0284C7),
-                          fontWeight: FontWeight.w900,
-                          fontSize: 10,
-                          letterSpacing: 0.5,
-                        ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => context.push('/track'),
+                      icon: const Icon(Icons.search, size: 16),
+                      label: const Text('Track Cargo'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showDeliveryDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(
-              Icons.local_shipping_outlined,
-              color: Color(0xFF7C3AED),
+              ],
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Local Delivery',
-              style: AppTypography.headlineMd.copyWith(fontSize: 18),
-            ),
-          ],
-        ),
-        content: Text(
-          'Doorstep delivery dispatch is available across Lagos and all Nigerian states from our Ikeja Central Hub.',
-          style: AppTypography.bodyMd.copyWith(
-            color: const Color(0xFF64748B),
-            fontSize: 13,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.push('/support-tickets');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF7C3AED),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Book Delivery'),
           ),
         ],
-      ),
+      ],
     );
   }
 }

@@ -48,8 +48,8 @@ class _PreAlertHistoryPageState extends ConsumerState<PreAlertHistoryPage> {
       final q = _searchQuery.toLowerCase();
       list = list.where((p) {
         final trk = p.trackingNumber.toLowerCase();
-        final cour = (p.courier ?? '').toLowerCase();
-        final desc = (p.description ?? '').toLowerCase();
+        final cour = p.courier.toLowerCase();
+        final desc = p.description.toLowerCase();
         return trk.contains(q) || cour.contains(q) || desc.contains(q);
       }).toList();
     }
@@ -231,7 +231,7 @@ class _PreAlertHistoryPageState extends ConsumerState<PreAlertHistoryPage> {
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, index) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final item = filtered[index];
                         return _PackagePreAlertCard(package: item);
@@ -285,11 +285,11 @@ class _PackagePreAlertCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = _statusColor();
-    final courierName = package.courier?.isNotEmpty == true
-        ? package.courier!
+    final courierName = package.courier.isNotEmpty
+        ? package.courier
         : 'Express Courier';
-    final desc = package.description?.isNotEmpty == true
-        ? package.description!
+    final desc = package.description.isNotEmpty
+        ? package.description
         : 'Package Intake';
 
     return Container(
@@ -402,7 +402,7 @@ class _PackagePreAlertCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Weight: ${package.weight > 0 ? '${package.weight} kg' : 'Pending'}${package.declaredValue != null && package.declaredValue! > 0 ? ' • Declared: ¥${package.declaredValue}' : ''}',
+                'Weight: ${package.weight > 0 ? '${package.weight} kg' : 'Pending'}${package.declaredValue > 0 ? ' • Declared: ¥${package.declaredValue}' : ''}',
                 style: AppTypography.bodySm.copyWith(
                   color: AppColors.onSurfaceVariant,
                   fontSize: 11,

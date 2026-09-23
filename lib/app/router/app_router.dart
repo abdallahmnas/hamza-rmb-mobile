@@ -28,6 +28,7 @@ import '../../features/account/views/new_ticket_page.dart';
 import '../../features/account/views/settings_page.dart';
 import '../../features/notifications/views/notifications_page.dart';
 
+import '../../features/delivery/views/local_delivery_page.dart';
 import '../../features/shipments/data/models/package_model.dart';
 import '../../features/wallet/data/models/transaction_model.dart';
 import '../../features/account/data/models/ticket_model.dart';
@@ -82,7 +83,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/live-tracking',
         name: 'liveTracking',
-        builder: (context, state) => const LiveTrackingPage(),
+        builder: (context, state) =>
+            LiveTrackingPage(initialTrackingId: state.extra as String?),
       ),
       GoRoute(
         path: '/shipment-details',
@@ -158,6 +160,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'warehouseAddresses',
         builder: (context, state) =>
             const AuthGuard(child: WarehouseAddressesPage()),
+      ),
+      GoRoute(
+        path: '/local-delivery',
+        name: 'localDelivery',
+        builder: (context, state) =>
+            const AuthGuard(child: LocalDeliveryPage()),
       ),
       GoRoute(
         path: '/pre-alert',

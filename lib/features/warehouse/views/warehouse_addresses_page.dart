@@ -32,32 +32,36 @@ class WarehouseAddressesPage extends ConsumerWidget {
           style: AppTypography.headlineMd.copyWith(fontSize: 16),
         ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header ───────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Warehouse Addresses',
-                    style: AppTypography.headlineMd.copyWith(fontSize: 20),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Use these addresses as your shipping destination when buying from 1688, Taobao, or overseas suppliers.',
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.onSurfaceVariant,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Header ───────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Warehouse Addresses',
+                      style: AppTypography.headlineMd.copyWith(fontSize: 20),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Use these addresses as your shipping destination when buying from 1688, Taobao, or overseas suppliers.',
+                      style: AppTypography.bodySm.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
             // ── China Hub ─────────────────────────────────────────
             Padding(
@@ -117,8 +121,9 @@ class WarehouseAddressesPage extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 // ── Address Field Model ────────────────────────────────────────────────────

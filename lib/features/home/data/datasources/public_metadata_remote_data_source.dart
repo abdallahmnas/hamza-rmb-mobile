@@ -22,7 +22,7 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
   @override
   Future<List<BannerModel>> fetchBanners() async {
     try {
-      final response = await _dio.get('/banners');
+      final response = await _dio.get<dynamic>('/banners');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -30,10 +30,11 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
       } else if (data is List<dynamic>) {
         list = data;
       }
-      return list
+      final parsed = list
           .map((item) => BannerModel.fromJson(item as Map<String, dynamic>))
           .where((b) => b.isActive)
           .toList();
+      return parsed.isNotEmpty ? parsed : BannerModel.defaultBanners;
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to fetch banners');
     } catch (e) {
@@ -44,7 +45,7 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
   @override
   Future<SystemSettingsModel> fetchSettings() async {
     try {
-      final response = await _dio.get('/settings');
+      final response = await _dio.get<dynamic>('/settings');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         final settingsJson = data['data'] ?? data;
@@ -63,7 +64,7 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
   @override
   Future<List<DeliveryVehicleModel>> fetchDeliveryVehicles() async {
     try {
-      final response = await _dio.get('/delivery/vehicles');
+      final response = await _dio.get<dynamic>('/delivery/vehicles');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -85,7 +86,7 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
   @override
   Future<ExchangeRateModel> fetchExchangeRate() async {
     try {
-      final response = await _dio.get('/exchanges/rate');
+      final response = await _dio.get<dynamic>('/exchanges/rate');
       final data = response.data;
       if (data is Map<String, dynamic>) {
         final rateJson = data['data'] ?? data;

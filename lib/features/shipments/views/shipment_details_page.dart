@@ -29,33 +29,33 @@ class ShipmentDetailsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Waybill Header Card ─────────────────────────────────
-            const _WaybillHeaderCard(),
-            const SizedBox(height: 20),
+            _WaybillHeaderCard(),
+            SizedBox(height: 20),
 
             // ── Cargo Specs ─────────────────────────────────────────
-            const _CargoSpecsGrid(),
-            const SizedBox(height: 20),
+            _CargoSpecsGrid(),
+            SizedBox(height: 20),
 
             // ── Freight & Invoicing ─────────────────────────────────
-            const _FreightInvoicingSection(),
-            const SizedBox(height: 20),
+            _FreightInvoicingSection(),
+            SizedBox(height: 20),
 
             // ── Guangzhou Intake Proofs ──────────────────────────────
-            const _IntakeProofsSection(),
-            const SizedBox(height: 20),
+            _IntakeProofsSection(),
+            SizedBox(height: 20),
 
             // ── Milestones & Journey ────────────────────────────────
-            const _MilestonesSection(),
-            const SizedBox(height: 20),
+            _MilestonesSection(),
+            SizedBox(height: 20),
 
             // ── Merged Sub-Packages ─────────────────────────────────
-            const _SubPackagesSection(),
+            _SubPackagesSection(),
           ],
         ),
       ),

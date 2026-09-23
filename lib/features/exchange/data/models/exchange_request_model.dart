@@ -10,6 +10,8 @@ class ExchangeRequestModel {
   final String rmbDestType;
   final String rmbDestAccount;
   final String rmbDestName;
+  final String? qrCodeUrl;
+  final String? receiptUrl;
   final DateTime? createdAt;
 
   const ExchangeRequestModel({
@@ -24,6 +26,8 @@ class ExchangeRequestModel {
     required this.rmbDestType,
     required this.rmbDestAccount,
     required this.rmbDestName,
+    this.qrCodeUrl,
+    this.receiptUrl,
     this.createdAt,
   });
 
@@ -40,6 +44,8 @@ class ExchangeRequestModel {
       rmbDestType: json['rmbDestType']?.toString() ?? 'alipay',
       rmbDestAccount: json['rmbDestAccount']?.toString() ?? '',
       rmbDestName: json['rmbDestName']?.toString() ?? '',
+      qrCodeUrl: json['qrCodeUrl']?.toString() ?? json['receiptUrl']?.toString(),
+      receiptUrl: json['receiptUrl']?.toString() ?? json['imageUrl']?.toString(),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
@@ -58,6 +64,8 @@ class ExchangeRequestModel {
         'rmbDestType': rmbDestType,
         'rmbDestAccount': rmbDestAccount,
         'rmbDestName': rmbDestName,
+        'qrCodeUrl': qrCodeUrl,
+        'receiptUrl': receiptUrl,
         'createdAt': createdAt?.toIso8601String(),
       };
 }

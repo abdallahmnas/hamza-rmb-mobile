@@ -77,8 +77,12 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
         final list = jsonDecode(bannersJson) as List<dynamic>;
         banners = list
             .map((e) => BannerModel.fromJson(e as Map<String, dynamic>))
+            .where((b) => b.isActive)
             .toList();
       } catch (_) {}
+    }
+    if (banners.isEmpty) {
+      banners = BannerModel.defaultBanners;
     }
 
     final vehiclesJson = storage.getString(_vehiclesKey);
@@ -104,7 +108,7 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
       banners: banners,
       vehicles: vehicles,
       exchangeRate: rates,
-      isLoading: banners.isEmpty,
+      isLoading: false,
     );
   }
 
@@ -127,7 +131,8 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
       ]);
 
       final newSettings = results[0] as SystemSettingsModel;
-      final newBanners = results[1] as List<BannerModel>;
+      final rawBanners = results[1] as List<BannerModel>;
+      final newBanners = rawBanners.isNotEmpty ? rawBanners : BannerModel.defaultBanners;
       final newVehicles = results[2] as List<DeliveryVehicleModel>;
       final newRates = results[3] as ExchangeRateModel;
 
@@ -141,7 +146,7 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
 
       state = state.copyWith(
         settings: newSettings,
-        banners: newBanners.isNotEmpty ? newBanners : state.banners,
+        banners: newBanners,
         vehicles: newVehicles.isNotEmpty ? newVehicles : state.vehicles,
         exchangeRate: newRates,
         isLoading: false,

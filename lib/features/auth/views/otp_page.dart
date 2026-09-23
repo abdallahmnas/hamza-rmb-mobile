@@ -25,7 +25,7 @@ class _OtpPageState extends ConsumerState<OtpPage> {
   String _otp = '';
 
   Future<void> _verifyOtp() async {
-    if (_otp.length < 4 || _isLoading) return;
+    if (_otp.length < 6 || _isLoading) return;
     setState(() => _isLoading = true);
 
     final authService = ref.read(authServiceProvider.notifier);
@@ -88,48 +88,89 @@ class _OtpPageState extends ConsumerState<OtpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.onBackground),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: AppColors.onBackground),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Verify your email',
-                style: AppTypography.headlineLg,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'We\'ve sent a verification code to ${widget.email}.',
-                style: AppTypography.bodyLg.copyWith(color: AppColors.onSurfaceVariant),
-              ),
-              const SizedBox(height: 48),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: AppOtpInput(
-                  length: 6,
-                  onCompleted: (otp) {
-                    setState(() {
-                      _otp = otp;
-                    });
-                    _verifyOtp();
-                  },
+              const SizedBox(height: 10),
+              Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.mark_email_read_outlined,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
                 ),
               ),
+              const SizedBox(height: 20),
+              Text(
+                'Verify your email',
+                style: AppTypography.headlineLg.copyWith(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 26,
+                ),
+              ),
+              const SizedBox(height: 8),
+              RichText(
+                text: TextSpan(
+                  text: 'Enter the 6-digit verification code sent to\n',
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: widget.email,
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.onBackground,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 36),
 
-              const SizedBox(height: 40),
+              // 6-digit responsive OTP box row
+              AppOtpInput(
+                length: 6,
+                onChanged: (otp) {
+                  setState(() {
+                    _otp = otp;
+                  });
+                },
+                onCompleted: (otp) {
+                  setState(() {
+                    _otp = otp;
+                  });
+                  _verifyOtp();
+                },
+              ),
+
+              const SizedBox(height: 36),
               AppButton.primary(
                 text: 'Verify Account',
-                onPressed: _otp.length >= 4 && !_isLoading ? _verifyOtp : null,
+                onPressed: _otp.length == 6 && !_isLoading ? _verifyOtp : null,
                 isLoading: _isLoading,
               ),
 
@@ -144,9 +185,9 @@ class _OtpPageState extends ConsumerState<OtpPage> {
                   TextButton(
                     onPressed: _isResending ? null : _resendOtp,
                     child: Text(
-                      _isResending ? 'Sending...' : 'Resend',
+                      _isResending ? 'Sending...' : 'Resend Code',
                       style: AppTypography.bodyMd.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.primary,
                       ),
                     ),
@@ -160,4 +201,3 @@ class _OtpPageState extends ConsumerState<OtpPage> {
     );
   }
 }
-

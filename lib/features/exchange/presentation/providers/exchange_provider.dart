@@ -70,6 +70,8 @@ class ExchangeNotifier extends Notifier<ExchangeState> {
     required String rmbDestType,
     required String rmbDestAccount,
     required String rmbDestName,
+    String? qrCodeUrl,
+    String? receiptUrl,
   }) async {
     state = state.copyWith(isSubmitting: true, error: null);
     try {
@@ -79,6 +81,8 @@ class ExchangeNotifier extends Notifier<ExchangeState> {
         rmbDestType: rmbDestType,
         rmbDestAccount: rmbDestAccount,
         rmbDestName: rmbDestName,
+        qrCodeUrl: qrCodeUrl,
+        receiptUrl: receiptUrl,
       );
       state = state.copyWith(
         requests: [newReq, ...state.requests],
@@ -98,12 +102,16 @@ class ExchangeNotifier extends Notifier<ExchangeState> {
     required double toAmount,
     required String receivingPlatform,
     required Map<String, dynamic> recipientDetails,
+    String? qrCodeUrl,
+    String? receiptUrl,
   }) async {
     return submitRequest(
       amountNaira: fromAmount,
       rmbDestType: receivingPlatform,
       rmbDestAccount: recipientDetails['account_id']?.toString() ?? '',
       rmbDestName: recipientDetails['beneficiary_name']?.toString() ?? '',
+      qrCodeUrl: qrCodeUrl,
+      receiptUrl: receiptUrl,
     );
   }
 }

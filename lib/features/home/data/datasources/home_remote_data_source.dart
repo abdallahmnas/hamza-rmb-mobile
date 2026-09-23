@@ -14,7 +14,7 @@ class HomeRemoteDataSourceImpl implements HomeRemoteDataSource {
   @override
   Future<List<ItemModel>> fetchItems() async {
     try {
-      final response = await _dio.get('/posts'); // Dummy API
+      final response = await _dio.get<dynamic>('/posts'); // Dummy API
       final List<dynamic> data = response.data as List<dynamic>;
       return data
           .map((json) => ItemModel.fromJson(json as Map<String, dynamic>))

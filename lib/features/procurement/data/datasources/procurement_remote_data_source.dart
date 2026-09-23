@@ -30,7 +30,7 @@ class ProcurementRemoteDataSourceImpl implements ProcurementRemoteDataSource {
     String? notes,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/procurements/request',
         data: {
           'productUrl': productUrl,
@@ -63,7 +63,7 @@ class ProcurementRemoteDataSourceImpl implements ProcurementRemoteDataSource {
   @override
   Future<List<ProcurementRequestModel>> fetchRequests() async {
     try {
-      final response = await _dio.get('/procurements/requests');
+      final response = await _dio.get<dynamic>('/procurements/requests');
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -85,7 +85,7 @@ class ProcurementRemoteDataSourceImpl implements ProcurementRemoteDataSource {
   @override
   Future<void> approveQuote(String id) async {
     try {
-      await _dio.post('/procurements/requests/$id/approve');
+      await _dio.post<dynamic>('/procurements/requests/$id/approve');
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to approve quote');
     } catch (e) {

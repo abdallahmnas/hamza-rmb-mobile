@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../core/services/media_upload_service.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
 import '../presentation/providers/support_provider.dart';
@@ -18,7 +21,12 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
   final _subjectController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _orderRefController = TextEditingController();
+
+  File? _localAttachmentFile;
+  String? _uploadedAttachmentUrl;
+  bool _isUploadingAttachment = false;
   bool _isSubmitting = false;
+  final ImagePicker _picker = ImagePicker();
 
   final _categories = [
     'Shipping',
@@ -37,6 +45,71 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
     _descriptionController.dispose();
     _orderRefController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAttachment(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        final file = File(picked.path);
+        setState(() {
+          _localAttachmentFile = file;
+          _isUploadingAttachment = true;
+          _uploadedAttachmentUrl = null;
+        });
+
+        try {
+          final url = await ref.read(mediaUploadServiceProvider).uploadImage(file);
+          if (mounted) {
+            setState(() {
+              _uploadedAttachmentUrl = url;
+              _isUploadingAttachment = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Attachment uploaded successfully!'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (uploadError) {
+          if (mounted) {
+            setState(() {
+              _isUploadingAttachment = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload attachment: $uploadError'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to select image: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeAttachment() {
+    setState(() {
+      _localAttachmentFile = null;
+      _uploadedAttachmentUrl = null;
+      _isUploadingAttachment = false;
+    });
   }
 
   Future<void> _handleSubmit() async {
@@ -64,16 +137,32 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
       return;
     }
 
+    if (_isUploadingAttachment) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for the attachment to finish uploading...'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
+      final descBuffer = StringBuffer(description);
+      if (orderRef.isNotEmpty) {
+        descBuffer.write('\n\n[Order Ref: $orderRef]');
+      }
+      if (_uploadedAttachmentUrl != null && _uploadedAttachmentUrl!.isNotEmpty) {
+        descBuffer.write('\n\n[Attachment: $_uploadedAttachmentUrl]');
+      }
+
       final success = await ref.read(supportProvider.notifier).createTicket(
             subject: subject,
             category: _selectedCategory,
             priority: _selectedPriority.toLowerCase(),
-            description: orderRef.isNotEmpty
-                ? '$description\n\n[Order Ref: $orderRef]'
-                : description,
+            description: descBuffer.toString(),
           );
 
       if (mounted) {
@@ -396,58 +485,162 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: GestureDetector(
-                onTap: () {},
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A)
-                                  .withValues(alpha: 0.06),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+              child: _localAttachmentFile != null
+                  ? Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isUploadingAttachment
+                              ? AppColors.secondary
+                              : const Color(0xFF10B981),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              _localAttachmentFile!,
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
                             ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.cloud_upload_outlined,
-                          color: AppColors.secondary,
-                          size: 24,
-                        ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Image Attached',
+                                  style: AppTypography.bodyMd.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _isUploadingAttachment
+                                      ? 'Uploading to server...'
+                                      : (_uploadedAttachmentUrl != null
+                                          ? 'Uploaded to server ✓'
+                                          : 'Ready for ticket submission'),
+                                  style: AppTypography.bodySm.copyWith(
+                                    color: _isUploadingAttachment
+                                        ? AppColors.secondary
+                                        : const Color(0xFF10B981),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_isUploadingAttachment)
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            )
+                          else
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: AppColors.error),
+                              onPressed: _removeAttachment,
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Tap to upload screenshots or documents',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    )
+                  : Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'JPG, PNG, PDF up to 5MB',
-                        style: AppTypography.bodySm.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0F172A)
+                                      .withValues(alpha: 0.06),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.cloud_upload_outlined,
+                              color: AppColors.secondary,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Upload screenshots or documents',
+                            style: AppTypography.bodySm.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'JPG or PNG photos (optional)',
+                            style: AppTypography.bodySm.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _pickAttachment(ImageSource.camera),
+                                icon: const Icon(Icons.camera_alt_outlined,
+                                    size: 16),
+                                label: const Text('Take Photo'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(
+                                      color: Color(0xFFCBD5E1)),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _pickAttachment(ImageSource.gallery),
+                                icon: const Icon(
+                                    Icons.photo_library_outlined,
+                                    size: 16),
+                                label: const Text('From Gallery'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(
+                                      color: Color(0xFFCBD5E1)),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
             ),
 
             const SizedBox(height: 24),
