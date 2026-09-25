@@ -172,11 +172,11 @@ class AuthService extends Notifier<AuthState> {
   }
 
   /// Verify 6-digit email OTP
-  Future<bool> verifyOtp(String otp) async {
+  Future<bool> verifyOtp({required String email, required String otp}) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final remoteSource = ref.read(authRemoteDataSourceProvider);
-      final response = await remoteSource.verifyOtp(otp);
+      final response = await remoteSource.verifyOtp(email: email, otp: otp);
 
       final storage = ref.read(localStorageProvider);
       if (response.token != null) {
@@ -202,10 +202,10 @@ class AuthService extends Notifier<AuthState> {
   }
 
   /// Resend OTP
-  Future<bool> resendOtp() async {
+  Future<bool> resendOtp({required String email}) async {
     try {
       final remoteSource = ref.read(authRemoteDataSourceProvider);
-      await remoteSource.resendOtp();
+      await remoteSource.resendOtp(email: email);
       return true;
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
@@ -227,11 +227,22 @@ class AuthService extends Notifier<AuthState> {
     }
   }
 
-  /// Log out — clear persisted auth data and reset state.
-  Future<void> logout() async {
+  /// Clear login session and cached data, resetting auth state to unauthenticated.
+  Future<void> clearSessionAndCache() async {
     final storage = ref.read(localStorageProvider);
-    await storage.remove(_tokenStorageKey);
-    await storage.remove(_userStorageKey);
+    await storage.clearSessionAndCache();
+    state = const AuthState();
+  }
+
+  /// Log out — clear persisted auth data and reset state.
+  Future<void> logout({bool clearAllCache = true}) async {
+    final storage = ref.read(localStorageProvider);
+    if (clearAllCache) {
+      await storage.clearSessionAndCache();
+    } else {
+      await storage.remove(_tokenStorageKey);
+      await storage.remove(_userStorageKey);
+    }
     state = const AuthState();
   }
 }

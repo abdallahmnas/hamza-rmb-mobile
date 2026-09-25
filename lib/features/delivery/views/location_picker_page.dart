@@ -36,6 +36,7 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
   bool _isGeocoding = false;
   bool _isSearching = false;
   List<PlaceSuggestion> _suggestions = [];
+  Set<Marker> _markers = {};
   Timer? _debounceTimer;
 
   // Track whether map is currently being dragged
@@ -55,12 +56,32 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
       );
       _selectedLocation = widget.initialLocation;
       _searchController.text = widget.initialLocation!.address;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: _currentCameraCenter,
+          infoWindow: InfoWindow(
+            title: widget.initialLocation!.shortTitle,
+            snippet: widget.initialLocation!.address,
+          ),
+        ),
+      };
     } else {
       _currentCameraCenter = const LatLng(
         AppConstants.defaultLatitude,
         AppConstants.defaultLongitude,
       );
       _selectedLocation = LocationModel.defaultAbuja();
+      _markers = {
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: _currentCameraCenter,
+          infoWindow: const InfoWindow(
+            title: 'Selected Pinpoint',
+            snippet: 'Abuja, Federal Capital Territory, Nigeria',
+          ),
+        ),
+      };
     }
   }
 
@@ -120,20 +141,35 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
           );
 
       if (loc != null && mounted) {
+        final target = LatLng(loc.latitude, loc.longitude);
         setState(() {
           _selectedLocation = loc;
-          _currentCameraCenter = LatLng(loc.latitude, loc.longitude);
+          _currentCameraCenter = target;
           _isGeocoding = false;
+          _searchController.text = loc.address;
+          _markers = {
+            Marker(
+              markerId: const MarkerId('selected_location'),
+              position: target,
+              infoWindow: InfoWindow(
+                title: loc.shortTitle,
+                snippet: loc.address,
+              ),
+            ),
+          };
         });
 
-        _mapController?.animateCamera(
+        // Navigate map camera directly to the clicked address
+        await _mapController?.animateCamera(
           CameraUpdate.newCameraPosition(
             CameraPosition(
-              target: _currentCameraCenter,
-              zoom: 16.5,
+              target: target,
+              zoom: 17.0,
             ),
           ),
         );
+      } else if (mounted) {
+        setState(() => _isGeocoding = false);
       }
     } catch (_) {
       if (mounted) setState(() => _isGeocoding = false);
@@ -145,6 +181,16 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
     setState(() {
       _isMapMoving = false;
       _isGeocoding = true;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: _currentCameraCenter,
+          infoWindow: InfoWindow(
+            title: _selectedLocation?.shortTitle ?? 'Pinpoint Location',
+            snippet: _selectedLocation?.address,
+          ),
+        ),
+      };
     });
 
     try {
@@ -157,6 +203,16 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
         setState(() {
           _selectedLocation = reverse;
           _isGeocoding = false;
+          _markers = {
+            Marker(
+              markerId: const MarkerId('selected_location'),
+              position: _currentCameraCenter,
+              infoWindow: InfoWindow(
+                title: reverse.shortTitle,
+                snippet: reverse.address,
+              ),
+            ),
+          };
         });
       }
     } catch (_) {
@@ -164,11 +220,22 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
     }
   }
 
-  void _centerOn(LatLng target, {double zoom = 15.5}) {
+  void _centerOn(LatLng target, {double zoom = 16.5, String? title, String? address}) {
     _searchFocusNode.unfocus();
     setState(() {
       _suggestions = [];
       _currentCameraCenter = target;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: target,
+          infoWindow: InfoWindow(
+            title: title ?? 'Selected Location',
+            snippet: address ??
+                '${target.latitude.toStringAsFixed(4)}, ${target.longitude.toStringAsFixed(4)}',
+          ),
+        ),
+      };
     });
     _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(
@@ -232,6 +299,7 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
               target: _currentCameraCenter,
               zoom: 15.0,
             ),
+            markers: _markers,
             myLocationEnabled: false,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
@@ -464,72 +532,33 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
             ),
           ),
 
-          // ── 4. Quick City Preset Chips ──────────────────────────────
-          Positioned(
-            top: 76,
-            left: 16,
-            right: 16,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _CityChip(
-                    label: '📍 Abuja (Default)',
-                    isSelected: (_currentCameraCenter.latitude - 9.0765).abs() < 0.05,
-                    onTap: () => _centerOn(
-                      const LatLng(AppConstants.defaultLatitude, AppConstants.defaultLongitude),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _CityChip(
-                    label: '🏢 Maitama',
-                    isSelected: false,
-                    onTap: () => _centerOn(const LatLng(9.0882, 7.4934)),
-                  ),
-                  const SizedBox(width: 8),
-                  _CityChip(
-                    label: '🛍️ Wuse 2',
-                    isSelected: false,
-                    onTap: () => _centerOn(const LatLng(9.0723, 7.4764)),
-                  ),
-                  const SizedBox(width: 8),
-                  _CityChip(
-                    label: '🌊 Jabi',
-                    isSelected: false,
-                    onTap: () => _centerOn(const LatLng(9.0772, 7.4246)),
-                  ),
-                  const SizedBox(width: 8),
-                  _CityChip(
-                    label: '🏙️ Lagos Island',
-                    isSelected: false,
-                    onTap: () => _centerOn(const LatLng(6.4549, 3.4246)),
-                  ),
-                  const SizedBox(width: 8),
-                  _CityChip(
-                    label: '🏛️ Kano Hub',
-                    isSelected: false,
-                    onTap: () => _centerOn(const LatLng(11.9899, 8.5204)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── 5. Map Control Floating Actions ─────────────────────────
+          // ── 4. Map Control Floating Actions ─────────────────────────
           Positioned(
             right: 16,
             bottom: 230,
             child: Column(
               children: [
                 FloatingActionButton.small(
-                  heroTag: 'recenter_abuja',
+                  heroTag: 'recenter_pin',
                   backgroundColor: Colors.white,
                   foregroundColor: const Color(0xFF0F172A),
                   elevation: 4,
-                  onPressed: () => _centerOn(
-                    const LatLng(AppConstants.defaultLatitude, AppConstants.defaultLongitude),
-                  ),
-                  tooltip: 'Center on Abuja',
+                  onPressed: () {
+                    if (_selectedLocation != null &&
+                        _selectedLocation!.latitude != 0 &&
+                        _selectedLocation!.longitude != 0) {
+                      _centerOn(
+                        LatLng(_selectedLocation!.latitude, _selectedLocation!.longitude),
+                        title: _selectedLocation!.shortTitle,
+                        address: _selectedLocation!.address,
+                      );
+                    } else {
+                      _centerOn(
+                        const LatLng(AppConstants.defaultLatitude, AppConstants.defaultLongitude),
+                      );
+                    }
+                  },
+                  tooltip: 'Recenter on Location',
                   child: const Icon(Icons.my_location_rounded, size: 20),
                 ),
                 const SizedBox(height: 8),
@@ -706,43 +735,3 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
   }
 }
 
-class _CityChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _CityChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: AppTypography.labelCaps.copyWith(
-            color: isSelected ? Colors.white : const Color(0xFF334155),
-            fontWeight: FontWeight.w700,
-            fontSize: 10.5,
-          ),
-        ),
-      ),
-    );
-  }
-}

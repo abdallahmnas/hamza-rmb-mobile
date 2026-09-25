@@ -30,9 +30,14 @@ abstract class AuthRemoteDataSource {
     required String password,
   });
 
-  Future<AuthResponse> verifyOtp(String otp);
+  Future<AuthResponse> verifyOtp({
+    required String email,
+    required String otp,
+  });
 
-  Future<AuthResponse> resendOtp();
+  Future<AuthResponse> resendOtp({
+    required String email,
+  });
 
   Future<UserModel> getMe();
 }
@@ -121,11 +126,17 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<AuthResponse> verifyOtp(String otp) async {
+  Future<AuthResponse> verifyOtp({
+    required String email,
+    required String otp,
+  }) async {
     try {
       final response = await _dio.post<dynamic>(
         '/auth/verify-otp',
-        data: {'otp': otp},
+        data: {
+          'email': email,
+          'otp': otp,
+        },
       );
       final data = response.data;
       String message = 'OTP verified successfully';
@@ -148,9 +159,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<AuthResponse> resendOtp() async {
+  Future<AuthResponse> resendOtp({
+    required String email,
+  }) async {
     try {
-      final response = await _dio.post<dynamic>('/auth/resend-otp');
+      final response = await _dio.post<dynamic>(
+        '/auth/resend-otp',
+        data: {'email': email},
+      );
       final data = response.data;
       String message = 'New OTP dispatched to email';
       if (data is Map<String, dynamic>) {

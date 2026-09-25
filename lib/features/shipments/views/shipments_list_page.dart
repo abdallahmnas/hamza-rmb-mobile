@@ -5,6 +5,8 @@ import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
 import '../data/models/package_model.dart';
 import '../presentation/providers/shipments_provider.dart';
+import '../../wallet/presentation/providers/wallet_provider.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 
 // ── Data model for a shipment item ─────────────────────────────────────────
 class _ShipmentItem {
@@ -118,6 +120,8 @@ class _ShipmentsListPageState extends ConsumerState<ShipmentsListPage> {
     super.initState();
     Future.microtask(() {
       ref.read(shipmentsProvider.notifier).fetchAll();
+      ref.read(walletProvider.notifier).refresh();
+      ref.read(systemMetadataProvider.notifier).refreshAll();
     });
   }
 
@@ -168,7 +172,11 @@ class _ShipmentsListPageState extends ConsumerState<ShipmentsListPage> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            await ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true);
+            await Future.wait([
+              ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true),
+              ref.read(walletProvider.notifier).refresh(),
+              ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true),
+            ]);
           },
           child: Column(
             children: [

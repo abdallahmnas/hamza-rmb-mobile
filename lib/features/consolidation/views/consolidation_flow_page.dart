@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/widgets/app_bar_logo_title.dart';
 import '../../shipments/presentation/providers/shipments_provider.dart';
 
 class ConsolidationFlowPage extends ConsumerStatefulWidget {
@@ -28,7 +29,9 @@ class _ConsolidationFlowPageState extends ConsumerState<ConsolidationFlowPage> {
   @override
   Widget build(BuildContext context) {
     final shipmentState = ref.watch(shipmentsProvider);
-    final availablePackages = shipmentState.packages;
+    final availablePackages = shipmentState.packages
+        .where((p) => p.status.toLowerCase() == 'received_cn')
+        .toList();
 
     final selectedPackages = availablePackages
         .where((p) => _selectedPackageIds.contains(p.id))
@@ -51,8 +54,8 @@ class _ConsolidationFlowPageState extends ConsumerState<ConsolidationFlowPage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.onBackground),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Consolidation',
+        title: AppBarLogoTitle(
+          title: 'Consolidation',
           style: AppTypography.headlineMd.copyWith(fontSize: 16),
         ),
         actions: [

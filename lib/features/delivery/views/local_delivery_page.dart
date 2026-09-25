@@ -13,6 +13,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/services/google_maps_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/app_bar_logo_title.dart';
 import '../../home/data/models/delivery_vehicle_model.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../../shipments/presentation/providers/shipments_provider.dart';
@@ -444,8 +445,8 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Doorstep Local Delivery',
+        title: AppBarLogoTitle(
+          title: 'Doorstep Local Delivery',
           style: AppTypography.headlineMd.copyWith(fontSize: 18),
         ),
         backgroundColor: AppColors.surface,
@@ -1265,26 +1266,52 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: Color(0xFF64748B),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        item.deliveryAddress,
-                        style: AppTypography.bodySm.copyWith(
-                          color: const Color(0xFF334155),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<LocationModel?>(
+                        builder: (context) => LocationPickerPage(
+                          title: 'Delivery Destination',
+                          initialLocation: LocationModel(
+                            address: item.deliveryAddress,
+                            latitude: AppConstants.defaultLatitude,
+                            longitude: AppConstants.defaultLongitude,
+                          ),
                         ),
                       ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          color: AppColors.primary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            item.deliveryAddress,
+                            style: AppTypography.bodySm.copyWith(
+                              color: const Color(0xFF334155),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.open_in_new_rounded,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Row(

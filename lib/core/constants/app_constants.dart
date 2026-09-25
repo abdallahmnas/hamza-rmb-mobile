@@ -9,10 +9,14 @@ class AppConstants {
     defaultValue: 'development',
   );
 
-  static const String googleMapsApiKey = String.fromEnvironment(
+  static String googleMapsApiKey = const String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
     defaultValue: '',
   );
+
+  static void setGoogleMapsApiKey(String key) {
+    googleMapsApiKey = key;
+  }
 
   /// Default coordinates (Abuja, Nigeria)
   static const double defaultLatitude = 9.0765;

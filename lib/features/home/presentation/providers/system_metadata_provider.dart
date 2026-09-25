@@ -5,12 +5,14 @@ import '../../data/datasources/public_metadata_remote_data_source.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/models/delivery_vehicle_model.dart';
 import '../../data/models/exchange_rate_model.dart';
+import '../../data/models/facility_model.dart';
 import '../../data/models/system_settings_model.dart';
 
 class SystemMetadataState {
   final SystemSettingsModel settings;
   final List<BannerModel> banners;
   final List<DeliveryVehicleModel> vehicles;
+  final List<FacilityModel> facilities;
   final ExchangeRateModel exchangeRate;
   final bool isLoading;
   final bool isRefreshing;
@@ -20,6 +22,7 @@ class SystemMetadataState {
     this.settings = const SystemSettingsModel(),
     this.banners = const [],
     this.vehicles = const [],
+    this.facilities = FacilityModel.defaultFacilities,
     this.exchangeRate = const ExchangeRateModel(),
     this.isLoading = false,
     this.isRefreshing = false,
@@ -30,6 +33,7 @@ class SystemMetadataState {
     SystemSettingsModel? settings,
     List<BannerModel>? banners,
     List<DeliveryVehicleModel>? vehicles,
+    List<FacilityModel>? facilities,
     ExchangeRateModel? exchangeRate,
     bool? isLoading,
     bool? isRefreshing,
@@ -39,6 +43,7 @@ class SystemMetadataState {
       settings: settings ?? this.settings,
       banners: banners ?? this.banners,
       vehicles: vehicles ?? this.vehicles,
+      facilities: facilities ?? this.facilities,
       exchangeRate: exchangeRate ?? this.exchangeRate,
       isLoading: isLoading ?? this.isLoading,
       isRefreshing: isRefreshing ?? this.isRefreshing,
@@ -52,6 +57,7 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
   static const String _bannersKey = 'cache_banners';
   static const String _vehiclesKey = 'cache_vehicles';
   static const String _ratesKey = 'cache_rates';
+  static const String _facilitiesKey = 'cache_facilities';
 
   @override
   SystemMetadataState build() {
@@ -61,6 +67,7 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
     SystemSettingsModel settings = const SystemSettingsModel();
     List<BannerModel> banners = [];
     List<DeliveryVehicleModel> vehicles = [];
+    List<FacilityModel> facilities = [];
     ExchangeRateModel rates = const ExchangeRateModel();
 
     final settingsJson = storage.getString(_settingsKey);
@@ -103,10 +110,25 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
       } catch (_) {}
     }
 
+    final facilitiesJson = storage.getString(_facilitiesKey);
+    if (facilitiesJson != null) {
+      try {
+        final list = jsonDecode(facilitiesJson) as List<dynamic>;
+        facilities = list
+            .map((e) => FacilityModel.fromJson(e as Map<String, dynamic>))
+            .where((f) => f.isActive)
+            .toList();
+      } catch (_) {}
+    }
+    if (facilities.isEmpty) {
+      facilities = FacilityModel.defaultFacilities;
+    }
+
     return SystemMetadataState(
       settings: settings,
       banners: banners,
       vehicles: vehicles,
+      facilities: facilities,
       exchangeRate: rates,
       isLoading: false,
     );
@@ -128,6 +150,7 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
         remoteSource.fetchBanners().catchError((_) => state.banners),
         remoteSource.fetchDeliveryVehicles().catchError((_) => state.vehicles),
         remoteSource.fetchExchangeRate().catchError((_) => state.exchangeRate),
+        remoteSource.fetchFacilities().catchError((_) => state.facilities),
       ]);
 
       final newSettings = results[0] as SystemSettingsModel;
@@ -135,6 +158,9 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
       final newBanners = rawBanners.isNotEmpty ? rawBanners : BannerModel.defaultBanners;
       final newVehicles = results[2] as List<DeliveryVehicleModel>;
       final newRates = results[3] as ExchangeRateModel;
+      final rawFacilities = results[4] as List<FacilityModel>;
+      final newFacilities =
+          rawFacilities.isNotEmpty ? rawFacilities : FacilityModel.defaultFacilities;
 
       // Persist fresh data to local storage
       await storage.setString(_settingsKey, jsonEncode(newSettings.toJson()));
@@ -143,11 +169,14 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
       await storage.setString(_vehiclesKey,
           jsonEncode(newVehicles.map((v) => v.toJson()).toList()));
       await storage.setString(_ratesKey, jsonEncode(newRates.toJson()));
+      await storage.setString(_facilitiesKey,
+          jsonEncode(newFacilities.map((f) => f.toJson()).toList()));
 
       state = state.copyWith(
         settings: newSettings,
         banners: newBanners,
         vehicles: newVehicles.isNotEmpty ? newVehicles : state.vehicles,
+        facilities: newFacilities,
         exchangeRate: newRates,
         isLoading: false,
         isRefreshing: false,
@@ -166,4 +195,8 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
 final systemMetadataProvider =
     NotifierProvider<SystemMetadataNotifier, SystemMetadataState>(() {
   return SystemMetadataNotifier();
+});
+
+final facilitiesProvider = Provider<List<FacilityModel>>((ref) {
+  return ref.watch(systemMetadataProvider).facilities;
 });

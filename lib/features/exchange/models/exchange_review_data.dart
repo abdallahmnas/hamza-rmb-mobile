@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../data/models/saved_account_model.dart';
 
 /// Data model to pass exchange form data between the Exchange
 /// and Exchange Review screens via GoRouter's `extra` parameter.
@@ -13,6 +14,7 @@ class ExchangeReviewData {
   final String accountId;
   final File? receiptImage;
   final String? imageUrl;
+  final SavedAccountModel? savedAccount;
 
   const ExchangeReviewData({
     required this.sendAmount,
@@ -25,6 +27,7 @@ class ExchangeReviewData {
     required this.accountId,
     this.receiptImage,
     this.imageUrl,
+    this.savedAccount,
   });
 
   ExchangeReviewData copyWith({
@@ -39,6 +42,8 @@ class ExchangeReviewData {
     File? receiptImage,
     bool clearReceiptImage = false,
     String? imageUrl,
+    SavedAccountModel? savedAccount,
+    bool clearSavedAccount = false,
   }) {
     return ExchangeReviewData(
       sendAmount: sendAmount ?? this.sendAmount,
@@ -52,6 +57,8 @@ class ExchangeReviewData {
       receiptImage:
           clearReceiptImage ? null : (receiptImage ?? this.receiptImage),
       imageUrl: imageUrl ?? this.imageUrl,
+      savedAccount:
+          clearSavedAccount ? null : (savedAccount ?? this.savedAccount),
     );
   }
 }

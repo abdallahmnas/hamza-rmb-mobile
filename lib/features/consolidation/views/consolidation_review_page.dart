@@ -7,6 +7,7 @@ import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../shipments/data/models/package_model.dart';
 import '../../shipments/presentation/providers/shipments_provider.dart';
+import '../../../core/widgets/app_bar_logo_title.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 
 class ConsolidationReviewPage extends ConsumerStatefulWidget {
@@ -25,28 +26,42 @@ class ConsolidationReviewPage extends ConsumerStatefulWidget {
 class _ConsolidationReviewPageState
     extends ConsumerState<ConsolidationReviewPage> {
   String _shippingMethod = 'air';
+  String _destinationWarehouse = 'lagos';
   String _paymentMethod = 'wallet';
   bool _isSubmitting = false;
 
   final _currencyFormat = NumberFormat('#,##0', 'en_US');
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(systemMetadataProvider.notifier).refreshAll();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final metaState = ref.watch(systemMetadataProvider);
     final settings = metaState.settings;
 
-    // Minimum 1kg: any weight below 1kg is calculated as 1 KG
+    // Minimum freight thresholds from provider state
+    final minAirKg =
+        settings.minAirFreightKg > 0 ? settings.minAirFreightKg : 1.0;
+    final minSeaCbm =
+        settings.minSeaFreightCbm > 0 ? settings.minSeaFreightCbm : 0.1;
+
     final rawWeightKg = widget.selectedPackages.fold<double>(
       0.0,
       (sum, p) => sum + (p.weightKg > 0 ? p.weightKg : 0.5),
     );
-    final totalWeightKg = math.max(1.0, rawWeightKg);
+    final totalWeightKg = math.max(minAirKg, rawWeightKg);
 
     final rawCbm = widget.selectedPackages.fold<double>(
       0.0,
       (sum, p) => sum + (p.cbm > 0 ? p.cbm : (p.weightKg > 0 ? p.weightKg / 300.0 : 0.01)),
     );
-    final totalCbm = math.max(0.01, rawCbm);
+    final totalCbm = math.max(minSeaCbm, rawCbm);
 
     final totalDeclaredUsd = widget.selectedPackages.fold<double>(
       0.0,
@@ -83,8 +98,8 @@ class _ConsolidationReviewPageState
           icon: const Icon(Icons.arrow_back, color: AppColors.onBackground),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Consolidation Review',
+        title: AppBarLogoTitle(
+          title: 'Consolidation Review',
           style: AppTypography.headlineMd.copyWith(fontSize: 16),
         ),
       ),
@@ -182,6 +197,47 @@ class _ConsolidationReviewPageState
 
             const SizedBox(height: 24),
 
+            // ── Destination Warehouse ────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Destination Warehouse',
+                style: AppTypography.bodyMd.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _WarehouseOptionCard(
+                      icon: Icons.warehouse_outlined,
+                      title: 'Lagos Hub',
+                      subtitle: 'Central Hub (LOS)',
+                      isSelected: _destinationWarehouse == 'lagos',
+                      onTap: () => setState(() => _destinationWarehouse = 'lagos'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _WarehouseOptionCard(
+                      icon: Icons.store_mall_directory_outlined,
+                      title: 'Kano Office',
+                      subtitle: 'Northern Hub (KAN)',
+                      isSelected: _destinationWarehouse == 'kano',
+                      onTap: () => setState(() => _destinationWarehouse = 'kano'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
             // ── Payment Method ───────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -213,8 +269,8 @@ class _ConsolidationReviewPageState
                       icon: Icons.local_shipping_outlined,
                       title: 'Pay on Delivery',
                       subtitle: 'At destination',
-                      isSelected: _paymentMethod == 'delivery',
-                      onTap: () => setState(() => _paymentMethod = 'delivery'),
+                      isSelected: _paymentMethod == 'cash_on_delivery',
+                      onTap: () => setState(() => _paymentMethod = 'cash_on_delivery'),
                     ),
                   ),
                 ],
@@ -249,16 +305,25 @@ class _ConsolidationReviewPageState
                     ),
                     const SizedBox(height: 10),
                     _CostRow(
+                      label: 'Destination',
+                      value: _destinationWarehouse == 'lagos'
+                          ? 'Lagos Central Hub'
+                          : 'Kano Northern Hub',
+                    ),
+                    const SizedBox(height: 10),
+                    _CostRow(
                       label: 'Total Weight',
-                      value: rawWeightKg < 1.0
-                          ? '${totalWeightKg.toStringAsFixed(1)} KG (Min. 1.0 KG Applied)'
+                      value: rawWeightKg < minAirKg
+                          ? '${totalWeightKg.toStringAsFixed(1)} KG (Min. ${minAirKg.toStringAsFixed(1)} KG Applied)'
                           : '${totalWeightKg.toStringAsFixed(1)} KG',
                     ),
                     if (_shippingMethod == 'sea') ...[
                       const SizedBox(height: 10),
                       _CostRow(
                         label: 'Estimated Volume',
-                        value: '${totalCbm.toStringAsFixed(2)} CBM',
+                        value: rawCbm < minSeaCbm
+                            ? '${totalCbm.toStringAsFixed(2)} CBM (Min. ${minSeaCbm.toStringAsFixed(2)} CBM Applied)'
+                            : '${totalCbm.toStringAsFixed(2)} CBM',
                       ),
                     ],
                     if (totalDeclaredUsd > 0) ...[
@@ -393,6 +458,16 @@ class _ConsolidationReviewPageState
   }
 
   Future<void> _handleConsolidate() async {
+    if (widget.selectedPackages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No packages selected for consolidation.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final packageIds = widget.selectedPackages.map((p) => p.id).toList();
@@ -400,7 +475,7 @@ class _ConsolidationReviewPageState
         await ref.read(shipmentsProvider.notifier).createConsolidation(
               packageIds: packageIds,
               shippingMethod: _shippingMethod,
-              destinationWarehouse: 'Lagos Warehouse',
+              destinationWarehouse: _destinationWarehouse,
               paymentMethod: _paymentMethod,
             );
 
@@ -612,6 +687,100 @@ class _CostRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Warehouse Option Card ──────────────────────────────────────────────────
+class _WarehouseOptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _WarehouseOptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? null
+              : Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isSelected
+                        ? Colors.white
+                        : AppColors.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? AppColors.secondary
+                        : Colors.transparent,
+                    border: isSelected
+                        ? null
+                        : Border.all(color: const Color(0xFFCBD5E1), width: 2),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white, size: 14)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: AppTypography.bodyMd.copyWith(
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : AppColors.onBackground,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: AppTypography.bodySm.copyWith(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.7)
+                    : AppColors.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

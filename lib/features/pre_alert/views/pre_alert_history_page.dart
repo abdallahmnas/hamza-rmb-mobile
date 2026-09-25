@@ -33,6 +33,7 @@ class _PreAlertHistoryPageState extends ConsumerState<PreAlertHistoryPage> {
       list = list
           .where((p) =>
               p.status.toLowerCase().contains('pending') ||
+              p.status.toLowerCase().contains('pre_alert') ||
               p.status.toLowerCase().contains('process'))
           .toList();
     } else if (_selectedTab == 2) {
@@ -272,7 +273,7 @@ class _PackagePreAlertCard extends StatelessWidget {
 
   Color _statusColor() {
     final s = package.status.toLowerCase();
-    if (s.contains('pending')) return AppColors.tertiary;
+    if (s.contains('pending') || s.contains('pre_alert')) return AppColors.tertiary;
     if (s.contains('process') || s.contains('transit')) {
       return AppColors.secondary;
     }
@@ -287,7 +288,7 @@ class _PackagePreAlertCard extends StatelessWidget {
     final statusColor = _statusColor();
     final courierName = package.courier.isNotEmpty
         ? package.courier
-        : 'Express Courier';
+        : 'Express Cargo';
     final desc = package.description.isNotEmpty
         ? package.description
         : 'Package Intake';
@@ -337,7 +338,7 @@ class _PackagePreAlertCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      package.trackingNumber,
+                      package.displayTracking,
                       style: AppTypography.labelCaps.copyWith(
                         color: AppColors.onSurfaceVariant,
                         fontSize: 11,

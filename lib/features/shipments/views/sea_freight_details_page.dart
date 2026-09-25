@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/auth/auth_service.dart';
+import '../../../core/widgets/app_bar_logo_title.dart';
+import '../../home/presentation/providers/system_metadata_provider.dart';
 
-class SeaFreightDetailsPage extends StatefulWidget {
+class SeaFreightDetailsPage extends ConsumerStatefulWidget {
   const SeaFreightDetailsPage({super.key});
 
   @override
-  State<SeaFreightDetailsPage> createState() => _SeaFreightDetailsPageState();
+  ConsumerState<SeaFreightDetailsPage> createState() => _SeaFreightDetailsPageState();
 }
 
-class _SeaFreightDetailsPageState extends State<SeaFreightDetailsPage> {
+class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
   bool _isDimensionsMode = true;
   double _lengthCm = 100;
   double _widthCm = 80;
@@ -63,8 +67,8 @@ class _SeaFreightDetailsPageState extends State<SeaFreightDetailsPage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.onBackground),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Sea Freight Service Details',
+        title: AppBarLogoTitle(
+          title: 'Sea Freight Service Details',
           style: AppTypography.bodyLg.copyWith(
             fontWeight: FontWeight.w700,
             fontSize: 16,
@@ -107,6 +111,9 @@ class _SeaFreightDetailsPageState extends State<SeaFreightDetailsPage> {
               // ── How Sea Freight Works ────────────────────────────────────
               _buildHowSeaFreightWorksSection(),
               const SizedBox(height: 24),
+
+              // ── Warehouse Facilities Receiving & Destination ──────────────
+              _buildWarehouseAddressSection(),
 
               // ── Guidelines & Prohibited Items ────────────────────────────
               _buildGuidelinesAccordionSection(),
@@ -1269,6 +1276,198 @@ class _SeaFreightDetailsPageState extends State<SeaFreightDetailsPage> {
           ),
         ),
       ],
+    );
+  }
+
+  // ── Sea Freight Warehouse Facilities Address Section ─────────────────────
+  Widget _buildWarehouseAddressSection() {
+    final authState = ref.watch(authServiceProvider);
+    if (!authState.isLoggedIn) {
+      return const SizedBox.shrink();
+    }
+
+    final facilities = ref.watch(facilitiesProvider);
+    final userFullName = authState.user?.fullName.isNotEmpty == true
+        ? authState.user!.fullName
+        : 'Hamza RMB Client';
+    final customerId = authState.user?.customerId ?? 'HZ-SEA';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'SEA CARGO RECEIVING & DESTINATION HUBS',
+                style: AppTypography.labelCaps.copyWith(
+                  color: const Color(0xFF0F766E),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 10.5,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCCFBF1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'OCEAN FREIGHT',
+                  style: AppTypography.labelCaps.copyWith(
+                    color: const Color(0xFF0D9488),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 9,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Choose where your overseas supplier delivers your container pallets in China or pick your preferred destination collection hub in Nigeria.',
+            style: AppTypography.bodySm.copyWith(
+              color: const Color(0xFF475569),
+              fontSize: 11.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...facilities.map((facility) {
+            final isChina = facility.isChina;
+            final addressText = isChina
+                ? '${facility.address}\nRecipient: $userFullName ($customerId)\nPhone: ${facility.contactPhone}'
+                : '${facility.address}\nContact: ${facility.contactName} (${facility.contactPhone})';
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isChina
+                          ? const Color(0xFFEFF6FF)
+                          : const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isChina
+                          ? Icons.directions_boat_outlined
+                          : Icons.warehouse_outlined,
+                      size: 20,
+                      color: isChina
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFF16A34A),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                facility.name,
+                                style: AppTypography.bodySm.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  color: AppColors.onBackground,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                facility.code,
+                                style: AppTypography.labelCaps.copyWith(
+                                  fontSize: 9,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          facility.address,
+                          style: AppTypography.bodySm.copyWith(
+                            fontSize: 11,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (isChina) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            'Marking: $userFullName ($customerId)',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFFEA580C),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: addressText));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${facility.name} address copied!'),
+                          backgroundColor: AppColors.primary,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.copy_rounded,
+                        color: Color(0xFF2563EB),
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 

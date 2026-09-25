@@ -16,8 +16,8 @@ abstract class SupportRemoteDataSource {
 
   Future<TicketModel> fetchTicketDetails(String id);
 
-  Future<TicketMessageModel> replyTicket({
-    required String id,
+  Future<TicketModel> replyTicket({
+    required String ticketId,
     required String message,
   });
 }
@@ -110,27 +110,32 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
   }
 
   @override
-  Future<TicketMessageModel> replyTicket({
-    required String id,
+  Future<TicketModel> replyTicket({
+    required String ticketId,
     required String message,
   }) async {
     try {
+      final formData = FormData.fromMap({
+        'ticketId': ticketId,
+        'message': message,
+      });
       final response = await _dio.post<dynamic>(
-        '/support/tickets/$id/messages',
-        data: {'message': message},
+        '/support',
+        data: formData,
       );
       final data = response.data;
       if (data is Map<String, dynamic>) {
-        final mJson = data['data'] ?? data;
-        if (mJson is Map<String, dynamic>) {
-          return TicketMessageModel.fromJson(mJson);
+        final tJson = data['data'] ?? data;
+        if (tJson is Map<String, dynamic>) {
+          return TicketModel.fromJson(tJson);
         }
       }
-      return TicketMessageModel(
-        id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
-        sender: 'You',
-        message: message,
-        timestamp: DateTime.now(),
+      return TicketModel(
+        id: ticketId,
+        subject: 'Support Ticket',
+        description: message,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to send reply');

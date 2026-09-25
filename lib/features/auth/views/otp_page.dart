@@ -29,7 +29,10 @@ class _OtpPageState extends ConsumerState<OtpPage> {
     setState(() => _isLoading = true);
 
     final authService = ref.read(authServiceProvider.notifier);
-    final success = await authService.verifyOtp(_otp);
+    final success = await authService.verifyOtp(
+      email: widget.email,
+      otp: _otp,
+    );
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -61,7 +64,7 @@ class _OtpPageState extends ConsumerState<OtpPage> {
     setState(() => _isResending = true);
 
     final authService = ref.read(authServiceProvider.notifier);
-    final success = await authService.resendOtp();
+    final success = await authService.resendOtp(email: widget.email);
 
     if (mounted) {
       setState(() => _isResending = false);

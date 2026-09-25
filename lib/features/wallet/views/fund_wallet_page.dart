@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,11 +8,11 @@ import 'package:intl/intl.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
-import '../../../core/services/media_upload_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
+import '../data/models/wallet_deposit_model.dart';
 import '../presentation/providers/wallet_provider.dart';
 
 class FundWalletPage extends ConsumerStatefulWidget {
@@ -25,12 +24,12 @@ class FundWalletPage extends ConsumerStatefulWidget {
 
 class _FundWalletPageState extends ConsumerState<FundWalletPage> {
   final _amountController = TextEditingController(text: '100000');
+  final _senderNameController = TextEditingController();
+  final _sessionIdController = TextEditingController();
   String _paymentMethod = 'bank_transfer';
   late String _reference;
 
   File? _localReceiptFile;
-  String? _uploadedReceiptUrl;
-  bool _isUploadingReceipt = false;
   bool _isSubmitting = false;
 
   final ImagePicker _picker = ImagePicker();
@@ -54,11 +53,22 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
     _reference = 'PAY-$randomSuffix';
 
     _amountController.addListener(() => setState(() {}));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(authServiceProvider).user;
+      if (user != null &&
+          user.fullName.isNotEmpty &&
+          _senderNameController.text.isEmpty) {
+        _senderNameController.text = user.fullName;
+      }
+    });
   }
 
   @override
   void dispose() {
     _amountController.dispose();
+    _senderNameController.dispose();
+    _sessionIdController.dispose();
     super.dispose();
   }
 
@@ -84,42 +94,9 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
         imageQuality: 85,
       );
       if (picked != null) {
-        final file = File(picked.path);
         setState(() {
-          _localReceiptFile = file;
-          _isUploadingReceipt = true;
-          _uploadedReceiptUrl = null;
+          _localReceiptFile = File(picked.path);
         });
-
-        try {
-          final url =
-              await ref.read(mediaUploadServiceProvider).uploadImage(file);
-          if (mounted) {
-            setState(() {
-              _uploadedReceiptUrl = url;
-              _isUploadingReceipt = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Payment receipt uploaded successfully!'),
-                backgroundColor: AppColors.success,
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            setState(() {
-              _isUploadingReceipt = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to upload receipt: $e'),
-                backgroundColor: AppColors.error,
-              ),
-            );
-          }
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -136,8 +113,6 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
   void _removeReceipt() {
     setState(() {
       _localReceiptFile = null;
-      _uploadedReceiptUrl = null;
-      _isUploadingReceipt = false;
     });
   }
 
@@ -150,48 +125,302 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
     if (rawAmount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid top-up amount'),
+          content: Text('Please enter a valid deposit amount'),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
 
-    if (_isUploadingReceipt) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please wait for receipt upload to complete...'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
-      return;
-    }
+    if (_paymentMethod == 'bank_transfer') {
+      final senderName = _senderNameController.text.trim();
+      final sessionId = _sessionIdController.text.trim();
 
-    setState(() => _isSubmitting = true);
-
-    final success = await ref.read(walletProvider.notifier).topup(
-          amount: rawAmount,
-          paymentMethod: _paymentMethod,
-          reference: _reference,
-          imageUrl: _uploadedReceiptUrl,
+      if (senderName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter the sender account name'),
+            backgroundColor: AppColors.error,
+          ),
         );
+        return;
+      }
 
-    setState(() => _isSubmitting = false);
+      if (sessionId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter the bank transfer Session ID / Ref'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
 
-    if (!mounted) return;
+      if (_localReceiptFile == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please attach your payment receipt screenshot'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
 
-    if (success) {
-      _showSuccessDialog(rawAmount, _reference);
+      setState(() => _isSubmitting = true);
+
+      final deposit = await ref.read(walletProvider.notifier).deposit(
+            amount: rawAmount,
+            senderName: senderName,
+            sessionId: sessionId,
+            receiptFile: _localReceiptFile,
+          );
+
+      setState(() => _isSubmitting = false);
+
+      if (!mounted) return;
+
+      if (deposit != null) {
+        _showDepositSuccessDialog(deposit);
+      } else {
+        final error =
+            ref.read(walletProvider).error ?? 'Failed to submit deposit request';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     } else {
-      final error =
-          ref.read(walletProvider).error ?? 'Failed to submit funding request';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      setState(() => _isSubmitting = true);
+
+      final success = await ref.read(walletProvider.notifier).topup(
+            amount: rawAmount,
+            paymentMethod: _paymentMethod,
+            reference: _reference,
+          );
+
+      setState(() => _isSubmitting = false);
+
+      if (!mounted) return;
+
+      if (success) {
+        _showSuccessDialog(rawAmount, _reference);
+      } else {
+        final error =
+            ref.read(walletProvider).error ?? 'Failed to submit funding request';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
+  }
+
+  void _showDepositSuccessDialog(WalletDepositModel deposit) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: 68,
+              height: 68,
+              decoration: const BoxDecoration(
+                color: Color(0xFFDCFCE7),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF16A34A),
+                size: 42,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Deposit Request Submitted!',
+              style: AppTypography.headlineMd.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: 20,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your deposit of ₦${_currencyFormat.format(deposit.amount)} has been submitted for review. Your wallet balance will update automatically upon bank confirmation.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodySm.copyWith(
+                color: AppColors.onSurfaceVariant,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'STATUS:',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          deposit.status.toUpperCase(),
+                          style: AppTypography.bodySm.copyWith(
+                            color: const Color(0xFFD97706),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16, color: Color(0xFF334155)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'SENDER NAME:',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      Text(
+                        deposit.senderName,
+                        style: AppTypography.bodyMd.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16, color: Color(0xFF334155)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'SESSION ID:',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      Text(
+                        deposit.sessionId,
+                        style: AppTypography.bodyMd.copyWith(
+                          color: const Color(0xFF38BDF8),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (deposit.id.isNotEmpty) ...[
+                    const Divider(height: 16, color: Color(0xFF334155)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'DEPOSIT ID:',
+                          style: AppTypography.labelCaps.copyWith(
+                            color: const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        Text(
+                          deposit.id.length > 18
+                              ? '${deposit.id.substring(0, 15)}...'
+                              : deposit.id,
+                          style: AppTypography.bodySm.copyWith(
+                            color: const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.pop(); // Return to wallet
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  'Back to Wallet',
+                  style: AppTypography.bodyMd.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showSuccessDialog(double amount, String refCode) {
@@ -582,19 +811,41 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
 
             const SizedBox(height: 24),
 
-            // ── 4. Proof of Payment Upload ──────────────────────────────────
-            _buildSectionTitle(
-                '4. Upload Payment Screenshot (Optional)', Icons.receipt_long_outlined),
-            const SizedBox(height: 10),
+            if (_paymentMethod == 'bank_transfer') ...[
+              // ── 4. Transfer Verification Details ──────────────────────────
+              _buildSectionTitle(
+                  '4. Transfer Verification Details', Icons.badge_outlined),
+              const SizedBox(height: 10),
 
-            _buildReceiptUploadCard(),
+              AppTextField(
+                controller: _senderNameController,
+                labelText: 'Sender Account Name *',
+                hintText: 'e.g. Abdul',
+                prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
+              ),
+              const SizedBox(height: 12),
 
-            const SizedBox(height: 30),
+              AppTextField(
+                controller: _sessionIdController,
+                labelText: 'Session ID / Transaction Ref *',
+                hintText: 'e.g. 1214',
+                prefixIcon: const Icon(Icons.tag_rounded, size: 20),
+              ),
+              const SizedBox(height: 24),
 
-            // ── 5. Submit Button ────────────────────────────────────────────
+              // ── 5. Proof of Payment Upload ──────────────────────────────────
+              _buildSectionTitle(
+                  '5. Upload Payment Screenshot *', Icons.receipt_long_outlined),
+              const SizedBox(height: 10),
+
+              _buildReceiptUploadCard(),
+              const SizedBox(height: 30),
+            ],
+
+            // ── Submit Button ───────────────────────────────────────────────
             AppButton.primary(
               text: _isSubmitting
-                  ? 'Submitting Funding Request...'
+                  ? 'Submitting Deposit Request...'
                   : 'Confirm & Submit (₦${_currencyFormat.format(parsedAmount)})',
               isLoading: _isSubmitting,
               onPressed: _isSubmitting ? null : _handleSubmit,
@@ -734,7 +985,7 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
   }
 
   Widget _buildReceiptUploadCard() {
-    if (_localReceiptFile != null || _uploadedReceiptUrl != null) {
+    if (_localReceiptFile != null) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -746,19 +997,12 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: _localReceiptFile != null
-                  ? Image.file(
-                      _localReceiptFile!,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: _uploadedReceiptUrl!,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                    ),
+              child: Image.file(
+                _localReceiptFile!,
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -774,13 +1018,9 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _isUploadingReceipt
-                        ? 'Uploading to cloud server...'
-                        : 'Uploaded & ready for verification',
+                    'Ready to submit with deposit request',
                     style: AppTypography.bodySm.copyWith(
-                      color: _isUploadingReceipt
-                          ? AppColors.secondary
-                          : const Color(0xFF16A34A),
+                      color: const Color(0xFF16A34A),
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -788,17 +1028,10 @@ class _FundWalletPageState extends ConsumerState<FundWalletPage> {
                 ],
               ),
             ),
-            if (_isUploadingReceipt)
-              const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                onPressed: _removeReceipt,
-              ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppColors.error),
+              onPressed: _removeReceipt,
+            ),
           ],
         ),
       );

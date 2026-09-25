@@ -8,6 +8,7 @@ import '../../../core/services/media_upload_service.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/app_bar_logo_title.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
@@ -26,6 +27,7 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
   final _quantityController = TextEditingController(text: '1');
   final _priceController = TextEditingController();
   final _variantsController = TextEditingController();
+  final _notesController = TextEditingController();
   
   final _currencyFormat = NumberFormat('#,##0.00', 'en_US');
 
@@ -53,6 +55,7 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
     _quantityController.dispose();
     _priceController.dispose();
     _variantsController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -127,6 +130,7 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
     final quantity = int.tryParse(_quantityController.text.trim()) ?? 1;
     final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
     final variants = _variantsController.text.trim();
+    final description = _notesController.text.trim();
 
     if (url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -162,11 +166,14 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
 
     try {
       final notesBuffer = StringBuffer();
+      if (description.isNotEmpty) {
+        notesBuffer.write(description);
+      }
       if (variants.isNotEmpty) {
+        if (notesBuffer.isNotEmpty) notesBuffer.write(' | Variants: ');
         notesBuffer.write(variants);
       }
-      if (price > 0) {
-        if (notesBuffer.isNotEmpty) notesBuffer.write(' | ');
+      if (price > 0 && notesBuffer.isEmpty) {
         notesBuffer.write('Est Price: ¥$price CNY');
       }
       if (_uploadedImageUrl != null && _uploadedImageUrl!.isNotEmpty) {
@@ -344,7 +351,10 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Buy For Me', style: AppTypography.headlineMd),
+        title: AppBarLogoTitle(
+          title: 'Buy For Me',
+          style: AppTypography.headlineMd,
+        ),
         backgroundColor: AppColors.surface,
         elevation: 0,
       ),
@@ -419,6 +429,15 @@ class _BuyForMePageState extends ConsumerState<BuyForMePage> {
                 controller: _variantsController,
                 labelText: 'Variants / Specifications (Optional)',
                 hintText: 'Color, Size, Specification notes...',
+              ),
+              const SizedBox(height: 16),
+
+              AppTextField(
+                controller: _notesController,
+                labelText: 'Description',
+                hintText: 'Please confirm stock',
+                maxLines: 3,
+                minLines: 2,
               ),
               const SizedBox(height: 16),
 

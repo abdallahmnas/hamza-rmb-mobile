@@ -115,18 +115,30 @@ class ShipmentsNotifier extends Notifier<ShipmentsState> {
   }
 
   Future<bool> submitPreAlert({
-    required String chineseTrackingNo,
-    required String courierName,
-    required double declaredValueUsd,
-    required String description,
+    required String originCountry,
+    required String paymentOption,
+    required int estimatedItems,
+    String? chineseTrackingNo,
+    String? supplierName,
+    String? description,
+    String? notes,
+    List<String>? photos,
+    String? courierName,
+    double? declaredValueUsd,
   }) async {
     try {
       final remoteSource = ref.read(shipmentsRemoteDataSourceProvider);
       final newPkg = await remoteSource.submitPreAlert(
+        originCountry: originCountry,
+        paymentOption: paymentOption,
+        estimatedItems: estimatedItems,
         chineseTrackingNo: chineseTrackingNo,
+        supplierName: supplierName,
+        description: description,
+        notes: notes,
+        photos: photos,
         courierName: courierName,
         declaredValueUsd: declaredValueUsd,
-        description: description,
       );
       state = state.copyWith(
         packages: [newPkg, ...state.packages],

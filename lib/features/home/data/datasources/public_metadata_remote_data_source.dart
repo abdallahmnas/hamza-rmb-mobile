@@ -5,6 +5,7 @@ import '../../../../core/network/dio_client.dart';
 import '../models/banner_model.dart';
 import '../models/delivery_vehicle_model.dart';
 import '../models/exchange_rate_model.dart';
+import '../models/facility_model.dart';
 import '../models/system_settings_model.dart';
 
 abstract class PublicMetadataRemoteDataSource {
@@ -12,6 +13,7 @@ abstract class PublicMetadataRemoteDataSource {
   Future<SystemSettingsModel> fetchSettings();
   Future<List<DeliveryVehicleModel>> fetchDeliveryVehicles();
   Future<ExchangeRateModel> fetchExchangeRate();
+  Future<List<FacilityModel>> fetchFacilities();
 }
 
 class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSource {
@@ -97,6 +99,29 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
       return const ExchangeRateModel();
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to fetch exchange rate');
+    } catch (e) {
+      throw UnknownError(e.toString());
+    }
+  }
+
+  @override
+  Future<List<FacilityModel>> fetchFacilities() async {
+    try {
+      final response = await _dio.get<dynamic>('/facilities');
+      final data = response.data;
+      List<dynamic> list = [];
+      if (data is Map<String, dynamic>) {
+        list = (data['data'] as List<dynamic>?) ?? [];
+      } else if (data is List<dynamic>) {
+        list = data;
+      }
+      final parsed = list
+          .map((item) => FacilityModel.fromJson(item as Map<String, dynamic>))
+          .where((f) => f.isActive)
+          .toList();
+      return parsed.isNotEmpty ? parsed : FacilityModel.defaultFacilities;
+    } on DioException catch (e) {
+      throw e.error ?? NetworkError(e.message ?? 'Failed to fetch facilities');
     } catch (e) {
       throw UnknownError(e.toString());
     }

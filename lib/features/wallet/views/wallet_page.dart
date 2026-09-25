@@ -9,7 +9,9 @@ import '../../../core/auth/auth_service.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../data/models/transaction_model.dart';
+import '../data/models/wallet_deposit_model.dart';
 import '../presentation/providers/wallet_provider.dart';
+import '../../shipments/presentation/providers/shipments_provider.dart';
 
 class WalletPage extends ConsumerStatefulWidget {
   const WalletPage({super.key});
@@ -23,6 +25,36 @@ class _WalletPageState extends ConsumerState<WalletPage> {
   int _selectedFilterIndex = 0; // 0: All, 1: Inflow, 2: Outflow, 3: Exchange
 
   final List<String> _filters = const ['All', 'Inflow', 'Outflow', 'Exchange'];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(walletProvider.notifier).refresh();
+      ref.read(shipmentsProvider.notifier).fetchAll();
+      ref.read(systemMetadataProvider.notifier).refreshAll();
+    });
+  }
+
+  double _getCnyRate(SystemMetadataState meta) {
+    if (meta.settings.cnyExchangeRate > 0) {
+      return meta.settings.cnyExchangeRate;
+    }
+    if (meta.exchangeRate.platformRate > 0) {
+      return meta.exchangeRate.platformRate;
+    }
+    if (meta.exchangeRate.rate > 0) {
+      return meta.exchangeRate.rate;
+    }
+    return 215.0;
+  }
+
+  double _getUsdRate(SystemMetadataState meta) {
+    if (meta.settings.usdExchangeRate > 0) {
+      return meta.settings.usdExchangeRate;
+    }
+    return 1550.0;
+  }
 
   void _copyToClipboard(String text, String message) {
     Clipboard.setData(ClipboardData(text: text));
@@ -113,7 +145,13 @@ class _WalletPageState extends ConsumerState<WalletPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(walletProvider.notifier).refresh(),
+        onRefresh: () async {
+          await Future.wait([
+            ref.read(walletProvider.notifier).refresh(),
+            ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true),
+            ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true),
+          ]);
+        },
         color: AppColors.primary,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -160,7 +198,24 @@ class _WalletPageState extends ConsumerState<WalletPage> {
 
               const SizedBox(height: 24),
 
-              // ── 5. Recent Transactions Section ───────────────────────
+              // ── 5. Recent Deposit Requests Section ────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SectionHeader(
+                  title: 'Recent Deposit Requests',
+                  actionText: 'Fund Wallet',
+                  onActionPressed: _showFundWalletSheet,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildDepositsList(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── 6. Recent Transactions Section ───────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SectionHeader(
@@ -199,9 +254,10 @@ class _WalletPageState extends ConsumerState<WalletPage> {
     final meta = ref.watch(systemMetadataProvider);
 
     final balance = wallet.balance;
-    final liveRate = meta.exchangeRate.rate > 0 ? meta.exchangeRate.rate : 228.50;
+    final liveRate = _getCnyRate(meta);
+    final usdRate = _getUsdRate(meta);
     final cnyEquiv = liveRate > 0 ? balance / liveRate : 0.0;
-    final usdEquiv = balance / 1550.0;
+    final usdEquiv = usdRate > 0 ? balance / usdRate : 0.0;
 
     final formatter = NumberFormat('#,##0.00');
     final formattedBalance = formatter.format(balance);
@@ -640,9 +696,10 @@ class _WalletPageState extends ConsumerState<WalletPage> {
     final meta = ref.watch(systemMetadataProvider);
     final wallet = ref.watch(walletProvider).wallet;
     final balance = wallet.balance;
-    final liveRate = meta.exchangeRate.rate > 0 ? meta.exchangeRate.rate : 228.50;
+    final liveRate = _getCnyRate(meta);
+    final usdRate = _getUsdRate(meta);
     final cnyEquiv = liveRate > 0 ? balance / liveRate : 0.0;
-    final usdEquiv = balance / 1550.0;
+    final usdEquiv = usdRate > 0 ? balance / usdRate : 0.0;
 
     final formatter = NumberFormat('#,##0.00');
 
@@ -666,7 +723,7 @@ class _WalletPageState extends ConsumerState<WalletPage> {
             code: 'USD',
             name: 'US Dollar',
             amount: '\$${formatter.format(usdEquiv)}',
-            rateTag: '1 USD ≈ ₦1,550.00',
+            rateTag: '1 USD ≈ ₦${formatter.format(usdRate)}',
             flagColor: const Color(0xFF1D4ED8),
             gradientColors: const [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
             onAction: () => context.push('/exchange'),
@@ -788,7 +845,7 @@ class _WalletPageState extends ConsumerState<WalletPage> {
   // ── RMB Live Rate Banner ──────────────────────────────────────────────────
   Widget _buildRmbRateBanner() {
     final meta = ref.watch(systemMetadataProvider);
-    final liveRate = meta.exchangeRate.rate > 0 ? meta.exchangeRate.rate : 228.50;
+    final liveRate = _getCnyRate(meta);
 
     return Container(
       width: double.infinity,
@@ -1095,6 +1152,435 @@ class _WalletPageState extends ConsumerState<WalletPage> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ── Recent Deposit Requests List ──────────────────────────────────────────
+  Widget _buildDepositsList() {
+    final deposits = ref.watch(walletProvider).deposits;
+
+    if (deposits.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.account_balance_outlined,
+                color: Color(0xFF10B981),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No Pending Deposit Requests',
+                    style: AppTypography.bodySm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onBackground,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Bank deposits submitted for review will appear here.',
+                    style: AppTypography.bodySm.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: _showFundWalletSheet,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                '+ Fund',
+                style: AppTypography.bodySm.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: List.generate(deposits.length, (index) {
+          final deposit = deposits[index];
+          final isLast = index == deposits.length - 1;
+          return _buildDepositTileItem(deposit, isLast);
+        }),
+      ),
+    );
+  }
+
+  Widget _buildDepositTileItem(WalletDepositModel deposit, bool isLast) {
+    final formatter = NumberFormat('#,##0.00');
+    final formattedAmt = '₦${formatter.format(deposit.amount)}';
+
+    Color statusColor;
+    Color statusBgColor;
+    String statusText;
+
+    switch (deposit.status.toLowerCase()) {
+      case 'approved':
+      case 'confirmed':
+      case 'completed':
+        statusColor = const Color(0xFF059669);
+        statusBgColor = const Color(0xFFD1FAE5);
+        statusText = 'CONFIRMED';
+        break;
+      case 'rejected':
+      case 'failed':
+        statusColor = const Color(0xFFDC2626);
+        statusBgColor = const Color(0xFFFEE2E2);
+        statusText = 'REJECTED';
+        break;
+      default:
+        statusColor = const Color(0xFFD97706);
+        statusBgColor = const Color(0xFFFEF3C7);
+        statusText = 'PENDING';
+    }
+
+    final dateStr = deposit.createdAt != null
+        ? DateFormat('MMM dd, yyyy • hh:mm a').format(deposit.createdAt!)
+        : 'Recent';
+
+    return InkWell(
+      onTap: () => _showDepositDetailsSheet(deposit),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : const Border(
+                  bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+                ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: statusBgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.file_upload_outlined,
+                color: statusColor,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        _isBalanceVisible ? formattedAmt : '••••••',
+                        style: AppTypography.bodyMd.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: AppColors.onBackground,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Sender: ${deposit.senderName} • Session: ${deposit.sessionId}',
+                    style: AppTypography.bodySm.copyWith(
+                      color: const Color(0xFF64748B),
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateStr,
+                    style: AppTypography.bodySm.copyWith(
+                      color: const Color(0xFF94A3B8),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (deposit.paymentReceiptUrl.isNotEmpty)
+              IconButton(
+                icon: const Icon(
+                  Icons.receipt_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                tooltip: 'View Receipt',
+                onPressed: () => _showReceiptDialog(deposit.paymentReceiptUrl),
+              ),
+            const Icon(
+              Icons.chevron_right,
+              color: Color(0xFFCBD5E1),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDepositDetailsSheet(WalletDepositModel deposit) {
+    final formatter = NumberFormat('#,##0.00');
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Deposit Request Details',
+                    style: AppTypography.headlineMd.copyWith(fontSize: 18),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    _buildDetailRow('Amount', '₦${formatter.format(deposit.amount)} ${deposit.currency}', isBold: true),
+                    const Divider(height: 16),
+                    _buildDetailRow('Status', deposit.status.toUpperCase(), isStatus: true),
+                    const Divider(height: 16),
+                    _buildDetailRow('Sender Name', deposit.senderName),
+                    const Divider(height: 16),
+                    _buildDetailRow('Session ID', deposit.sessionId, canCopy: true),
+                    if (deposit.id.isNotEmpty) ...[
+                      const Divider(height: 16),
+                      _buildDetailRow('Deposit ID', deposit.id, canCopy: true),
+                    ],
+                    if (deposit.createdAt != null) ...[
+                      const Divider(height: 16),
+                      _buildDetailRow(
+                        'Date Submitted',
+                        DateFormat('MMM dd, yyyy • hh:mm a').format(deposit.createdAt!),
+                      ),
+                    ],
+                    if (deposit.rejectionReason != null && deposit.rejectionReason!.isNotEmpty) ...[
+                      const Divider(height: 16),
+                      _buildDetailRow('Rejection Reason', deposit.rejectionReason!, isError: true),
+                    ],
+                  ],
+                ),
+              ),
+              if (deposit.paymentReceiptUrl.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showReceiptDialog(deposit.paymentReceiptUrl);
+                    },
+                    icon: const Icon(Icons.image_outlined, size: 18),
+                    label: const Text('View Payment Receipt'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isBold = false, bool isStatus = false, bool canCopy = false, bool isError = false}) {
+    Color valColor = AppColors.onBackground;
+    if (isStatus) {
+      valColor = value == 'CONFIRMED' || value == 'APPROVED' ? const Color(0xFF059669) : const Color(0xFFD97706);
+    } else if (isError) {
+      valColor = AppColors.error;
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: AppTypography.bodySm.copyWith(
+            color: const Color(0xFF64748B),
+            fontSize: 12,
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: AppTypography.bodySm.copyWith(
+                fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+                color: valColor,
+                fontSize: 12,
+              ),
+            ),
+            if (canCopy) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () => _copyToClipboard(value, '$label copied!'),
+                child: const Icon(Icons.copy, size: 14, color: AppColors.primary),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showReceiptDialog(String url) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Payment Receipt',
+                    style: AppTypography.headlineMd.copyWith(fontSize: 16),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  url,
+                  height: 300,
+                  width: double.infinity,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox(
+                    height: 160,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image, size: 40, color: AppColors.onSurfaceVariant),
+                          SizedBox(height: 6),
+                          Text('Unable to display receipt image'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

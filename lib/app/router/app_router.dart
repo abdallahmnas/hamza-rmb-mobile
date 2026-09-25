@@ -14,6 +14,7 @@ import '../../features/shipments/views/air_freight_details_page.dart';
 import '../../features/shipments/views/sea_freight_details_page.dart';
 import '../../features/exchange/views/exchange_page.dart';
 import '../../features/exchange/views/exchange_review_page.dart';
+import '../../features/exchange/views/saved_accounts_page.dart';
 import '../../features/exchange/models/exchange_review_data.dart';
 import '../../features/procurement/views/buy_for_me_page.dart';
 import '../../features/consolidation/views/consolidation_flow_page.dart';
@@ -35,6 +36,13 @@ import '../../features/delivery/data/models/location_model.dart';
 import '../../features/shipments/data/models/package_model.dart';
 import '../../features/wallet/data/models/transaction_model.dart';
 import '../../features/account/data/models/ticket_model.dart';
+import '../../features/services/views/services_hub_page.dart';
+import '../../features/customs_clearance/data/models/clearance_request_model.dart';
+import '../../features/customs_clearance/views/customs_clearance_home_page.dart';
+import '../../features/customs_clearance/views/request_clearance_page.dart';
+import '../../features/customs_clearance/views/clearance_confirmation_page.dart';
+import '../../features/customs_clearance/views/my_clearance_requests_page.dart';
+import '../../features/customs_clearance/views/clearance_details_page.dart';
 
 /// Provider for the GoRouter — uses Riverpod so it can read onboarding state.
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -130,6 +138,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               );
           return AuthGuard(child: ExchangeReviewPage(reviewData: data));
         },
+      ),
+      GoRoute(
+        path: '/exchange-saved-accounts',
+        name: 'exchangeSavedAccounts',
+        builder: (context, state) =>
+            const AuthGuard(child: SavedAccountsPage()),
       ),
       GoRoute(
         path: '/buy-for-me',
@@ -234,6 +248,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'notifications',
         builder: (context, state) =>
             const AuthGuard(child: NotificationsPage()),
+      ),
+      GoRoute(
+        path: '/services',
+        name: 'services',
+        builder: (context, state) => const ServicesHubPage(),
+      ),
+      GoRoute(
+        path: '/customs-clearance',
+        name: 'customsClearance',
+        builder: (context, state) => const CustomsClearanceHomePage(),
+      ),
+      GoRoute(
+        path: '/customs-clearance/new',
+        name: 'requestClearance',
+        builder: (context, state) =>
+            const AuthGuard(child: RequestClearancePage()),
+      ),
+      GoRoute(
+        path: '/customs-clearance/confirmation',
+        name: 'clearanceConfirmation',
+        builder: (context, state) {
+          final request = state.extra as ClearanceRequestModel;
+          return ClearanceConfirmationPage(request: request);
+        },
+      ),
+      GoRoute(
+        path: '/customs-clearance/my-requests',
+        name: 'myClearanceRequests',
+        builder: (context, state) =>
+            const AuthGuard(child: MyClearanceRequestsPage()),
+      ),
+      GoRoute(
+        path: '/customs-clearance/details/:id',
+        name: 'clearanceDetails',
+        builder: (context, state) {
+          final id = state.pathParameters['id'];
+          final req = state.extra as ClearanceRequestModel?;
+          return AuthGuard(
+            child: ClearanceDetailsPage(
+              initialRequestId: id,
+              initialRequest: req,
+            ),
+          );
+        },
       ),
     ],
     errorBuilder: (context, state) =>

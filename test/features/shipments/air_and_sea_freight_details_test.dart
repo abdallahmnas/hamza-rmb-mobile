@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hamza_rmb/core/storage/local_storage.dart';
 import 'package:hamza_rmb/features/shipments/views/air_freight_details_page.dart';
 import 'package:hamza_rmb/features/shipments/views/sea_freight_details_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('AirFreightDetailsPage Widget Tests', () {
     testWidgets('renders all key sections and header information', (
       WidgetTester tester,
     ) async {
+      final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
-        const MaterialApp(
-          home: AirFreightDetailsPage(),
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: AirFreightDetailsPage(),
+          ),
         ),
       );
 
@@ -37,9 +50,15 @@ void main() {
     testWidgets('renders maritime header, CBM calculator, and booking actions', (
       WidgetTester tester,
     ) async {
+      final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
-        const MaterialApp(
-          home: SeaFreightDetailsPage(),
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: const MaterialApp(
+            home: SeaFreightDetailsPage(),
+          ),
         ),
       );
 

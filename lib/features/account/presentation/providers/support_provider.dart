@@ -113,25 +113,33 @@ class SupportNotifier extends Notifier<SupportState> {
   }) async {
     try {
       final remote = ref.read(supportRemoteDataSourceProvider);
-      final newMsg = await remote.replyTicket(id: id, message: message);
-      
+      final updatedTicket =
+          await remote.replyTicket(ticketId: id, message: message);
+
+      final newMsg = TicketMessageModel(
+        id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
+        sender: 'You',
+        message: message,
+        timestamp: DateTime.now(),
+      );
+
       final updatedList = state.tickets.map((t) {
         if (t.id == id) {
-          return TicketModel(
-            id: t.id,
-            subject: t.subject,
-            category: t.category,
-            description: t.description,
-            status: t.status,
-            priority: t.priority,
-            createdAt: t.createdAt,
-            messages: [...t.messages, newMsg],
+          final mergedMessages = [...t.messages, newMsg];
+          return updatedTicket.copyWith(
+            description: t.description.isNotEmpty
+                ? t.description
+                : updatedTicket.description,
+            messages: mergedMessages,
           );
         }
         return t;
       }).toList();
 
       state = state.copyWith(tickets: updatedList);
+      final storage = ref.read(localStorageProvider);
+      await storage.setString(
+          _storageKey, jsonEncode(updatedList.map((e) => e.toJson()).toList()));
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());

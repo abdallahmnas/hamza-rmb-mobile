@@ -4,6 +4,8 @@ class SystemSettingsModel {
   final double airFreightRatePerKg;
   final double seaFreightRatePerCbm;
   final double seaFreightRatePerKg;
+  final double minAirFreightKg;
+  final double minSeaFreightCbm;
   final double buyForMeFeePercent;
   final double buyForMeFixedFee;
   final String ngnEscrowBankName;
@@ -19,6 +21,8 @@ class SystemSettingsModel {
     this.airFreightRatePerKg = 12500.0,
     this.seaFreightRatePerCbm = 450000.0,
     this.seaFreightRatePerKg = 3500.0,
+    this.minAirFreightKg = 1.0,
+    this.minSeaFreightCbm = 0.1,
     this.buyForMeFeePercent = 5.0,
     this.buyForMeFixedFee = 1000.0,
     this.ngnEscrowBankName = 'GTBank',
@@ -40,6 +44,10 @@ class SystemSettingsModel {
           (json['seaFreightRatePerCbm'] as num?)?.toDouble() ?? 450000.0,
       seaFreightRatePerKg:
           (json['seaFreightRatePerKg'] as num?)?.toDouble() ?? 3500.0,
+      minAirFreightKg:
+          (json['minAirFreightKg'] as num?)?.toDouble() ?? 1.0,
+      minSeaFreightCbm:
+          (json['minSeaFreightCbm'] as num?)?.toDouble() ?? 0.1,
       buyForMeFeePercent:
           (json['buyForMeFeePercent'] as num?)?.toDouble() ?? 5.0,
       buyForMeFixedFee:
@@ -65,6 +73,8 @@ class SystemSettingsModel {
         'airFreightRatePerKg': airFreightRatePerKg,
         'seaFreightRatePerCbm': seaFreightRatePerCbm,
         'seaFreightRatePerKg': seaFreightRatePerKg,
+        'minAirFreightKg': minAirFreightKg,
+        'minSeaFreightCbm': minSeaFreightCbm,
         'buyForMeFeePercent': buyForMeFeePercent,
         'buyForMeFixedFee': buyForMeFixedFee,
         'ngnEscrowBankName': ngnEscrowBankName,

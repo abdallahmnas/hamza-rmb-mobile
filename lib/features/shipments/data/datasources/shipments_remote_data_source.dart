@@ -8,10 +8,16 @@ import '../models/package_model.dart';
 abstract class ShipmentsRemoteDataSource {
   Future<List<PackageModel>> fetchPackages();
   Future<PackageModel> submitPreAlert({
-    required String chineseTrackingNo,
-    required String courierName,
-    required double declaredValueUsd,
-    required String description,
+    required String originCountry,
+    required String paymentOption,
+    required int estimatedItems,
+    String? chineseTrackingNo,
+    String? supplierName,
+    String? description,
+    String? notes,
+    List<String>? photos,
+    String? courierName,
+    double? declaredValueUsd,
   });
   Future<List<ConsolidationModel>> fetchConsolidations();
   Future<ConsolidationModel> createConsolidation({
@@ -51,20 +57,53 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
 
   @override
   Future<PackageModel> submitPreAlert({
-    required String chineseTrackingNo,
-    required String courierName,
-    required double declaredValueUsd,
-    required String description,
+    required String originCountry,
+    required String paymentOption,
+    required int estimatedItems,
+    String? chineseTrackingNo,
+    String? supplierName,
+    String? description,
+    String? notes,
+    List<String>? photos,
+    String? courierName,
+    double? declaredValueUsd,
   }) async {
     try {
+      final payload = <String, dynamic>{
+        'originCountry': originCountry.trim(),
+        'paymentOption': paymentOption.trim(),
+        'estimatedItems': estimatedItems,
+      };
+
+      if (chineseTrackingNo != null && chineseTrackingNo.trim().isNotEmpty) {
+        payload['chineseTrackingNo'] = chineseTrackingNo.trim();
+      }
+      if (supplierName != null && supplierName.trim().isNotEmpty) {
+        payload['supplierName'] = supplierName.trim();
+      }
+      if (description != null && description.trim().isNotEmpty) {
+        payload['description'] = description.trim();
+      }
+      if (notes != null && notes.trim().isNotEmpty) {
+        payload['notes'] = notes.trim();
+      }
+      if (photos != null && photos.isNotEmpty) {
+        payload['photos'] = photos;
+      }
+      if (courierName != null && courierName.trim().isNotEmpty) {
+        payload['courierName'] = courierName.trim();
+      }
+      if (declaredValueUsd != null && declaredValueUsd > 0) {
+        payload['declaredValueUsd'] = declaredValueUsd;
+      }
+
+      final endpoint = _dio.options.baseUrl.contains('/v1')
+          ? '/shipments/pre-alert'
+          : '/v1/shipments/pre-alert';
+
       final response = await _dio.post<dynamic>(
-        '/shipments/pre-alert',
-        data: {
-          'chineseTrackingNo': chineseTrackingNo,
-          'courierName': courierName,
-          'declaredValueUsd': declaredValueUsd,
-          'description': description,
-        },
+        endpoint,
+        data: payload,
       );
       final data = response.data;
       if (data is Map<String, dynamic>) {
@@ -75,16 +114,21 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
       }
       return PackageModel(
         id: 'pkg-temp-${DateTime.now().millisecondsSinceEpoch}',
-        trackingNumber: chineseTrackingNo,
-        courierName: courierName,
-        declaredValueUsd: declaredValueUsd,
+        trackingNumber: chineseTrackingNo ?? '',
+        supplierName: supplierName ?? '',
+        originCountry: originCountry,
+        paymentOption: paymentOption,
+        estimatedItems: estimatedItems,
+        notes: notes,
         itemDescription: description,
-        status: 'pre_alert_submitted',
+        photos: photos ?? const [],
+        status: 'pre_alerted',
         receivedDate: DateTime.now(),
       );
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to submit pre-alert');
     } catch (e) {
+      if (e is AppError) rethrow;
       throw UnknownError(e.toString());
     }
   }
@@ -119,7 +163,7 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
   }) async {
     try {
       final response = await _dio.post<dynamic>(
-        '/shipments/consolidations',
+        '/shipments/consolidate',
         data: {
           'packageIds': packageIds,
           'shippingMethod': shippingMethod,
@@ -143,6 +187,13 @@ class ShipmentsRemoteDataSourceImpl implements ShipmentsRemoteDataSource {
         paymentMethod: paymentMethod,
       );
     } on DioException catch (e) {
+      final serverMsg = (e.response?.data is Map)
+          ? (e.response?.data['message']?.toString() ??
+              e.response?.data['error']?.toString())
+          : null;
+      if (serverMsg != null) {
+        throw NetworkError(serverMsg);
+      }
       throw e.error ?? NetworkError(e.message ?? 'Failed to create consolidation');
     } catch (e) {
       throw UnknownError(e.toString());

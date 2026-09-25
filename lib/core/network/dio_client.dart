@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../auth/auth_service.dart';
 import '../constants/app_constants.dart';
 import '../errors/app_errors.dart';
 import '../storage/local_storage.dart';
@@ -34,7 +35,18 @@ final dioProvider = Provider<Dio>((ref) {
       onResponse: (response, handler) {
         return handler.next(response);
       },
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
+        final statusCode = e.response?.statusCode;
+
+        // Whenever an API call detects status 401, clear login session and cache.
+        if (statusCode == 401) {
+          try {
+            await ref.read(authServiceProvider.notifier).clearSessionAndCache();
+          } catch (_) {
+            // Silently swallow errors during session clearing
+          }
+        }
+
         if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||
             e.type == DioExceptionType.sendTimeout ||
@@ -42,6 +54,7 @@ final dioProvider = Provider<Dio>((ref) {
           return handler.next(
             DioException(
               requestOptions: e.requestOptions,
+              response: e.response,
               error: NetworkError('Unable to connect to server. Please check your internet connection.'),
             ),
           );
@@ -49,11 +62,15 @@ final dioProvider = Provider<Dio>((ref) {
 
         if (e.response != null) {
           final data = e.response?.data;
-          String errorMessage = 'An error occurred';
+          String errorMessage = statusCode == 401
+              ? 'Session expired. Please log in again.'
+              : 'An error occurred';
           if (data is Map<String, dynamic>) {
             errorMessage = data['message']?.toString() ??
                 data['error']?.toString() ??
-                'Request failed with status code ${e.response?.statusCode}';
+                (statusCode == 401
+                    ? 'Session expired. Please log in again.'
+                    : 'Request failed with status code ${e.response?.statusCode}');
           } else if (data is String && data.isNotEmpty) {
             errorMessage = data;
           }
@@ -61,10 +78,13 @@ final dioProvider = Provider<Dio>((ref) {
           return handler.next(
             DioException(
               requestOptions: e.requestOptions,
-              error: ApiError(
-                errorMessage,
-                statusCode: e.response?.statusCode,
-              ),
+              response: e.response,
+              error: statusCode == 401
+                  ? UnauthorizedError(errorMessage)
+                  : ApiError(
+                      errorMessage,
+                      statusCode: statusCode,
+                    ),
             ),
           );
         }
@@ -72,6 +92,7 @@ final dioProvider = Provider<Dio>((ref) {
         return handler.next(
           DioException(
             requestOptions: e.requestOptions,
+            response: e.response,
             error: NetworkError(e.message ?? 'Unknown network error'),
           ),
         );

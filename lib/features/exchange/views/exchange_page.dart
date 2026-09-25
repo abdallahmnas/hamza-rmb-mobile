@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/widgets/app_bar_logo_title.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../models/exchange_review_data.dart';
+import '../presentation/providers/exchange_provider.dart';
 
 class ExchangePage extends ConsumerStatefulWidget {
   const ExchangePage({super.key});
@@ -26,6 +28,7 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
     super.initState();
     Future.microtask(() {
       ref.read(systemMetadataProvider.notifier).refreshAll();
+      ref.read(exchangeProvider.notifier).fetchSavedAccounts();
       _calculateFromNgn(_sendController.text);
     });
   }
@@ -101,15 +104,20 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
       return;
     }
 
+    final exchangeState = ref.read(exchangeProvider);
+    final savedAccount = exchangeState.selectedSavedAccount;
+
     final data = ExchangeReviewData(
       sendAmount: NumberFormat('#,##0.00').format(amountNgn),
       receiveAmount: NumberFormat('#,##0.00').format(amountCny),
       sendCurrency: 'NGN',
       receiveCurrency: 'CNY',
       exchangeRate: '1 CNY = ₦${rate.toStringAsFixed(2)} NGN',
-      selectedPlatform: 'alipay',
-      beneficiaryName: '',
-      accountId: '',
+      selectedPlatform: savedAccount?.platform ?? 'wechat_pay',
+      beneficiaryName: savedAccount?.accountName ?? '',
+      accountId: savedAccount?.accountNumber ?? '',
+      imageUrl: savedAccount?.barcodeUrl,
+      savedAccount: savedAccount,
     );
     context.push('/exchange-review', extra: data);
   }
@@ -132,13 +140,23 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Currency Exchange', style: AppTypography.headlineMd),
+        title: AppBarLogoTitle(
+          title: 'Currency Exchange',
+          style: AppTypography.headlineMd,
+        ),
         backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bookmarks_outlined, color: AppColors.primary),
+            tooltip: 'Saved RMB Accounts',
+            onPressed: () => context.push('/exchange-saved-accounts'),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -226,7 +244,95 @@ class _ExchangePageState extends ConsumerState<ExchangePage> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // ── Saved Accounts Quick Bar ───────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final exState = ref.watch(exchangeProvider);
+                  final count = exState.savedAccounts.length;
+                  final defaultAcc = exState.selectedSavedAccount;
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                count > 0
+                                    ? 'Saved Account: ${defaultAcc?.label.isNotEmpty == true ? defaultAcc!.label : defaultAcc?.accountName ?? "Active"}'
+                                    : 'Saved RMB Accounts',
+                                style: AppTypography.bodySm.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                              Text(
+                                count > 0
+                                    ? '${defaultAcc?.accountName ?? ""} (${defaultAcc?.accountNumber ?? ""})'
+                                    : 'Add WeChat or Alipay for quick 1-tap swaps',
+                                style: AppTypography.bodySm.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                  fontSize: 11,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              context.push('/exchange-saved-accounts'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            count > 0 ? 'Manage' : '+ Add',
+                            style: AppTypography.bodySm.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 20),
 
             // ── Quick Convert Card (Dark) ──────────────────────────────
             Padding(

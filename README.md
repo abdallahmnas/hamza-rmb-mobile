@@ -33,10 +33,12 @@ lib/
 ## Configuration & Environments
 
 The application supports environment variables. By default, it expects:
+
 - `API_BASE_URL` (Defaults to `https://jsonplaceholder.typicode.com`)
 - `APP_ENV` (Defaults to `development`)
 
 To run with specific variables:
+
 ```bash
 flutter run --dart-define=API_BASE_URL=https://api.example.com --dart-define=APP_ENV=production
 ```

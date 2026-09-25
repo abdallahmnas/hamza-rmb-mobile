@@ -15,10 +15,20 @@ class ApiError extends AppError {
   ApiError(super.message, {this.statusCode});
 }
 
+class UnauthorizedError extends ApiError {
+  UnauthorizedError([super.message = 'Session expired. Please log in again.'])
+      : super(statusCode: 401);
+}
+
 class StorageError extends AppError {
   StorageError(super.message);
+}
+
+class ValidationError extends AppError {
+  ValidationError(super.message);
 }
 
 class UnknownError extends AppError {
   UnknownError(super.message);
 }
+

@@ -18,6 +18,8 @@ abstract class LocalStorage {
   String? getString(String key);
   Future<void> remove(String key);
   Future<void> clear();
+  Future<void> clearCache();
+  Future<void> clearSessionAndCache({bool preserveOnboarding = true});
 }
 
 class LocalStorageImpl implements LocalStorage {
@@ -60,4 +62,34 @@ class LocalStorageImpl implements LocalStorage {
       throw StorageError('Failed to clear storage: $e');
     }
   }
+
+  @override
+  Future<void> clearCache() async {
+    try {
+      final keys = _prefs.getKeys().toList();
+      for (final key in keys) {
+        if (key.startsWith('cache_')) {
+          await _prefs.remove(key);
+        }
+      }
+    } catch (e) {
+      throw StorageError('Failed to clear cache: $e');
+    }
+  }
+
+  @override
+  Future<void> clearSessionAndCache({bool preserveOnboarding = true}) async {
+    try {
+      final keys = _prefs.getKeys().toList();
+      for (final key in keys) {
+        if (preserveOnboarding && key == 'onboarding_completed') {
+          continue;
+        }
+        await _prefs.remove(key);
+      }
+    } catch (e) {
+      throw StorageError('Failed to clear session and cache: $e');
+    }
+  }
 }
+

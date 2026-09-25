@@ -8,6 +8,9 @@ import '../../../app/theme/app_typography.dart';
 import '../../home/data/models/banner_model.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 import '../../shipments/presentation/providers/shipments_provider.dart';
+import '../../customs_clearance/data/models/clearance_request_model.dart';
+import '../../customs_clearance/presentation/providers/customs_clearance_provider.dart';
+import '../../wallet/presentation/providers/wallet_provider.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -19,6 +22,16 @@ class DashboardPage extends ConsumerStatefulWidget {
 class _DashboardPageState extends ConsumerState<DashboardPage> {
   final PageController _bannerPageController = PageController();
   int _currentBannerIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(systemMetadataProvider.notifier).refreshAll();
+      ref.read(shipmentsProvider.notifier).fetchAll();
+      ref.read(walletProvider.notifier).refresh();
+    });
+  }
 
   @override
   void dispose() {
@@ -44,6 +57,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             await Future.wait([
               ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true),
               ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true),
+              ref.read(walletProvider.notifier).refresh(),
               if (isLoggedIn) ref.read(authServiceProvider.notifier).refreshProfile(),
             ]);
           },
@@ -64,6 +78,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
                   // ── "● All Services" Grid Section ────────────────────────
                   _buildAllServicesSection(context, metadataState),
+                  const SizedBox(height: 16),
+
+                  // ── Customs Clearance Dashboard Card (Requirement #20) ───
+                  _buildCustomsClearanceDashboardCard(context),
                   const SizedBox(height: 16),
 
                   // ── Live Tracking & Milestones Bar ────────────────────────
@@ -751,24 +769,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               ],
             ),
-            Row(
-              children: [
-                const Icon(
-                  Icons.help_outline_rounded,
-                  size: 13,
-                  color: Color(0xFF94A3B8),
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  'ACTIVE',
-                  style: AppTypography.labelCaps.copyWith(
-                    color: const Color(0xFF64748B),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
-                    letterSpacing: 0.8,
+            GestureDetector(
+              onTap: () => context.push('/services'),
+              child: Row(
+                children: [
+                  Text(
+                    'Services Hub',
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 3),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 11,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -862,7 +882,259 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+
+        // Row 4: Customs Clearance & Services Hub
+        Row(
+          children: [
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Customs Clearance',
+                description: 'Nigerian ports & airport customs clearing.',
+                actionText: 'Clear goods',
+                badgeText: 'PORT & AIRPORT',
+                icon: Icons.shield_outlined,
+                gradientColors: const [Color(0xFF065F46), Color(0xFF047857)],
+                onTap: () => context.push('/customs-clearance'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildServiceCard(
+                title: 'Services Hub',
+                description: 'All freight, sourcing, and logistics solutions.',
+                actionText: 'Explore all',
+                badgeText: 'DIRECTORY',
+                icon: Icons.grid_view_rounded,
+                gradientColors: const [Color(0xFF1E293B), Color(0xFF334155)],
+                onTap: () => context.push('/services'),
+              ),
+            ),
+          ],
+        ),
       ],
+    );
+  }
+
+  // ── Customs Clearance Dashboard Card (Requirement #20) ────────────────────
+  Widget _buildCustomsClearanceDashboardCard(BuildContext context) {
+    final clearanceState = ref.watch(customsClearanceProvider);
+    final activeRequest = clearanceState.latestActiveRequest;
+
+    if (activeRequest != null) {
+      Color statusColor;
+      if (activeRequest.isActionRequired) {
+        statusColor = const Color(0xFFDC2626);
+      } else if (activeRequest.status == ClearanceStatus.awaitingPayment) {
+        statusColor = const Color(0xFFD97706);
+      } else {
+        statusColor = const Color(0xFF2563EB);
+      }
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: activeRequest.isActionRequired
+                ? const Color(0xFFFECACA)
+                : const Color(0xFFE2E8F0),
+            width: activeRequest.isActionRequired ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF065F46).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.shield_outlined,
+                        color: Color(0xFF059669),
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Customs Clearance',
+                      style: AppTypography.bodyMd.copyWith(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    ClearanceStatus.getLabel(activeRequest.status).toUpperCase(),
+                    style: AppTypography.labelCaps.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 9,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              activeRequest.requestNumber,
+              style: AppTypography.headlineMd.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              '${activeRequest.itemsSummary} • ${activeRequest.portOfEntry}',
+              style: AppTypography.bodySm.copyWith(
+                color: const Color(0xFF64748B),
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (activeRequest.isActionRequired) ...[
+              const SizedBox(height: 8),
+              Text(
+                activeRequest.requiredActionNote ??
+                    'Action Required: Please upload missing documentation.',
+                style: AppTypography.bodySm.copyWith(
+                  color: const Color(0xFFDC2626),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push(
+                  '/customs-clearance/details/${activeRequest.id}',
+                  extra: activeRequest,
+                ),
+                icon: const Icon(Icons.track_changes_rounded, size: 16),
+                label: const Text('Track Clearance'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: statusColor,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // No active request
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.shield_outlined,
+                  color: Color(0xFF059669),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Customs Clearance',
+                style: AppTypography.bodyMd.copyWith(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Need help clearing imported goods?',
+            style: AppTypography.headlineMd.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Submit your bill of lading or air waybill and let our licensed clearing specialists clear your cargo through Nigerian customs.',
+            style: AppTypography.bodySm.copyWith(
+              color: const Color(0xFF64748B),
+              fontSize: 11,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => context.push('/customs-clearance/new'),
+              icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+              label: const Text('Request Customs Clearance'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

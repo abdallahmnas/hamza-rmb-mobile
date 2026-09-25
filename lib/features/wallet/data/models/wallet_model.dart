@@ -20,13 +20,23 @@ class WalletModel {
   });
 
   factory WalletModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic v, [double def = 0.0]) {
+      if (v == null) return def;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? def;
+    }
+
+    final bal = parseDouble(
+      json['balance'],
+      parseDouble(json['availableBalance'], parseDouble(json['walletBalance'])),
+    );
+    final availBal = parseDouble(json['availableBalance'], bal);
+
     return WalletModel(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? '',
-      balance: (json['balance'] as num?)?.toDouble() ?? 0.0,
-      availableBalance: (json['availableBalance'] as num?)?.toDouble() ??
-          (json['balance'] as num?)?.toDouble() ??
-          0.0,
+      userId: json['userId']?.toString() ?? json['user']?.toString() ?? '',
+      balance: bal,
+      availableBalance: availBal,
       currency: json['currency']?.toString() ?? 'NGN',
       bankName: json['bankName']?.toString() ?? 'Wema Bank',
       accountNumber: json['accountNumber']?.toString() ?? '9876543210',
