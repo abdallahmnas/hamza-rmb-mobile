@@ -13,7 +13,7 @@ abstract class PublicMetadataRemoteDataSource {
   Future<SystemSettingsModel> fetchSettings();
   Future<List<DeliveryVehicleModel>> fetchDeliveryVehicles();
   Future<ExchangeRateModel> fetchExchangeRate();
-  Future<List<FacilityModel>> fetchFacilities();
+  Future<List<FacilityModel>> fetchFacilities({String? country});
 }
 
 class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSource {
@@ -105,9 +105,14 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
   }
 
   @override
-  Future<List<FacilityModel>> fetchFacilities() async {
+  Future<List<FacilityModel>> fetchFacilities({String? country}) async {
     try {
-      final response = await _dio.get<dynamic>('/facilities');
+      final response = await _dio.get<dynamic>(
+        '/facilities',
+        queryParameters: country != null && country.isNotEmpty
+            ? {'country': country}
+            : null,
+      );
       final data = response.data;
       List<dynamic> list = [];
       if (data is Map<String, dynamic>) {
@@ -119,7 +124,26 @@ class PublicMetadataRemoteDataSourceImpl implements PublicMetadataRemoteDataSour
           .map((item) => FacilityModel.fromJson(item as Map<String, dynamic>))
           .where((f) => f.isActive)
           .toList();
-      return parsed.isNotEmpty ? parsed : FacilityModel.defaultFacilities;
+      if (parsed.isNotEmpty) {
+        if (country != null && country.isNotEmpty) {
+          final matched = parsed.where((f) =>
+              f.country.toUpperCase() == country.toUpperCase() ||
+              (country.toUpperCase() == 'CN' && f.isChina)).toList();
+          return matched.isNotEmpty ? matched : parsed;
+        }
+        return parsed;
+      }
+      if (country != null && country.isNotEmpty) {
+        final filteredDefault = FacilityModel.defaultFacilities
+            .where((f) =>
+                f.country.toUpperCase() == country.toUpperCase() ||
+                (country.toUpperCase() == 'CN' && f.isChina))
+            .toList();
+        return filteredDefault.isNotEmpty
+            ? filteredDefault
+            : FacilityModel.defaultFacilities;
+      }
+      return FacilityModel.defaultFacilities;
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to fetch facilities');
     } catch (e) {

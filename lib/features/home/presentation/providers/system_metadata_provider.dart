@@ -150,7 +150,7 @@ class SystemMetadataNotifier extends Notifier<SystemMetadataState> {
         remoteSource.fetchBanners().catchError((_) => state.banners),
         remoteSource.fetchDeliveryVehicles().catchError((_) => state.vehicles),
         remoteSource.fetchExchangeRate().catchError((_) => state.exchangeRate),
-        remoteSource.fetchFacilities().catchError((_) => state.facilities),
+        remoteSource.fetchFacilities(country: 'CN').catchError((_) => state.facilities),
       ]);
 
       final newSettings = results[0] as SystemSettingsModel;
@@ -200,3 +200,12 @@ final systemMetadataProvider =
 final facilitiesProvider = Provider<List<FacilityModel>>((ref) {
   return ref.watch(systemMetadataProvider).facilities;
 });
+
+final chinaFacilitiesProvider = Provider<List<FacilityModel>>((ref) {
+  final facilities = ref.watch(facilitiesProvider);
+  final chinaOnly = facilities.where((f) => f.isChina).toList();
+  return chinaOnly.isNotEmpty
+      ? chinaOnly
+      : FacilityModel.defaultFacilities.where((f) => f.isChina).toList();
+});
+

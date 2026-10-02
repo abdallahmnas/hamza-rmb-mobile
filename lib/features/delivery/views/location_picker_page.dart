@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -297,6 +295,7 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
         children: [
           // ── 1. Interactive Google Map ────────────────────────────────
           GoogleMap(
+            mapType: MapType.normal,
             initialCameraPosition: CameraPosition(
               target: _currentCameraCenter,
               zoom: 15.0,
@@ -311,9 +310,7 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
             tiltGesturesEnabled: true,
             compassEnabled: true,
             mapToolbarEnabled: false,
-            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-              Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
-            },
+            minMaxZoomPreference: const MinMaxZoomPreference(2.0, 20.0),
             onMapCreated: (controller) {
               _mapController = controller;
             },

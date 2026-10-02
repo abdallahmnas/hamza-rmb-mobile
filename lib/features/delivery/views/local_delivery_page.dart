@@ -1,13 +1,9 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -51,7 +47,6 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
 
   LocationModel? _pickupLocation;
   LocationModel? _deliveryLocation;
-  GoogleMapController? _routeMapController;
 
   String? _selectedConsolidationId;
   String? _selectedVehicleId;
@@ -82,51 +77,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
     _addressController.dispose();
     _cityStateController.dispose();
     _notesController.dispose();
-    _routeMapController?.dispose();
     super.dispose();
-  }
-
-  void _fitRouteBounds() {
-    if (_routeMapController == null) return;
-    if (_pickupLocation != null && _deliveryLocation != null) {
-      final p1 = LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude);
-      final p2 = LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude);
-      if ((p1.latitude - p2.latitude).abs() < 0.0001 &&
-          (p1.longitude - p2.longitude).abs() < 0.0001) {
-        _routeMapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(p1, 15.0),
-        );
-      } else {
-        final southwest = LatLng(
-          math.min(p1.latitude, p2.latitude),
-          math.min(p1.longitude, p2.longitude),
-        );
-        final northeast = LatLng(
-          math.max(p1.latitude, p2.latitude),
-          math.max(p1.longitude, p2.longitude),
-        );
-        _routeMapController!.animateCamera(
-          CameraUpdate.newLatLngBounds(
-            LatLngBounds(southwest: southwest, northeast: northeast),
-            48.0,
-          ),
-        );
-      }
-    } else if (_pickupLocation != null) {
-      _routeMapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude),
-          15.0,
-        ),
-      );
-    } else if (_deliveryLocation != null) {
-      _routeMapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(
-          LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude),
-          15.0,
-        ),
-      );
-    }
   }
 
   Future<void> _pickPickupLocation() async {
@@ -143,7 +94,6 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
       setState(() {
         _pickupLocation = result;
       });
-      Future.delayed(const Duration(milliseconds: 300), _fitRouteBounds);
     }
   }
 
@@ -165,7 +115,6 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
           _cityStateController.text = '${result.city}, ${result.state}';
         }
       });
-      Future.delayed(const Duration(milliseconds: 300), _fitRouteBounds);
     }
   }
 
@@ -702,12 +651,6 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                 onTap: _pickDeliveryLocation,
                 isPickup: false,
               ),
-
-              // Embedded Interactive Google Map Route Display
-              if (_pickupLocation != null || _deliveryLocation != null) ...[
-                const SizedBox(height: 14),
-                _buildRouteMapPreview(),
-              ],
 
               // Route & Distance Summary banner if destination is selected
               if (_deliveryLocation != null) ...[
@@ -1733,195 +1676,6 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRouteMapPreview() {
-    final markers = <Marker>{};
-    final polylines = <Polyline>{};
-
-    LatLng centerLatLng;
-    if (_pickupLocation != null && _deliveryLocation != null) {
-      centerLatLng = LatLng(
-        (_pickupLocation!.latitude + _deliveryLocation!.latitude) / 2,
-        (_pickupLocation!.longitude + _deliveryLocation!.longitude) / 2,
-      );
-    } else if (_pickupLocation != null) {
-      centerLatLng = LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude);
-    } else {
-      centerLatLng = LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude);
-    }
-
-    if (_pickupLocation != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('pickup_marker'),
-          position: LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-          infoWindow: InfoWindow(
-            title: 'Pickup Location',
-            snippet: _pickupLocation!.shortTitle,
-          ),
-        ),
-      );
-    }
-
-    if (_deliveryLocation != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('dropoff_marker'),
-          position: LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
-          infoWindow: InfoWindow(
-            title: 'Delivery Destination',
-            snippet: _deliveryLocation!.shortTitle,
-          ),
-        ),
-      );
-    }
-
-    if (_pickupLocation != null && _deliveryLocation != null) {
-      polylines.add(
-        Polyline(
-          polylineId: const PolylineId('route_line'),
-          points: [
-            LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude),
-            LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude),
-          ],
-          color: AppColors.primary,
-          width: 5,
-        ),
-      );
-    }
-
-    return Container(
-      height: 220,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: Stack(
-          children: [
-            GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: centerLatLng,
-                zoom: 13.0,
-              ),
-              markers: markers,
-              polylines: polylines,
-              zoomControlsEnabled: false,
-              myLocationEnabled: false,
-              myLocationButtonEnabled: false,
-              compassEnabled: true,
-              mapToolbarEnabled: false,
-              zoomGesturesEnabled: true,
-              scrollGesturesEnabled: true,
-              rotateGesturesEnabled: true,
-              tiltGesturesEnabled: true,
-              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
-              },
-              onMapCreated: (controller) {
-                _routeMapController = controller;
-                _fitRouteBounds();
-              },
-            ),
-
-            // Top Status Badge
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.route_rounded, color: Color(0xFF38BDF8), size: 14),
-                    const SizedBox(width: 5),
-                    Text(
-                      _pickupLocation != null && _deliveryLocation != null
-                          ? 'LIVE ROUTE PREVIEW'
-                          : 'PINPOINT MAP',
-                      style: AppTypography.labelCaps.copyWith(
-                        color: Colors.white,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.7,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Right Map Controls (+, -, Fit Route)
-            Positioned(
-              bottom: 10,
-              right: 10,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_pickupLocation != null && _deliveryLocation != null)
-                    Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      elevation: 3,
-                      child: InkWell(
-                        onTap: _fitRouteBounds,
-                        borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
-                          padding: EdgeInsets.all(7.0),
-                          child: Icon(Icons.fit_screen_rounded, size: 18, color: Color(0xFF0F172A)),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 6),
-                  Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    elevation: 3,
-                    child: InkWell(
-                      onTap: () => _routeMapController?.animateCamera(CameraUpdate.zoomIn()),
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(7.0),
-                        child: Icon(Icons.add, size: 18, color: Color(0xFF0F172A)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    elevation: 3,
-                    child: InkWell(
-                      onTap: () => _routeMapController?.animateCamera(CameraUpdate.zoomOut()),
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(7.0),
-                        child: Icon(Icons.remove, size: 18, color: Color(0xFF0F172A)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );

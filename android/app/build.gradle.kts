@@ -30,8 +30,20 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
 
+        val envFile = rootProject.file("../.env")
+        var envMapsKey = ""
+        if (envFile.exists()) {
+            envFile.forEachLine { line ->
+                val trimmed = line.trim()
+                if (trimmed.startsWith("GOOGLE_MAPS_API_KEY=")) {
+                    envMapsKey = trimmed.substringAfter("=").trim().trim('"', '\'')
+                }
+            }
+        }
+
         val mapsApiKey = (project.findProperty("GOOGLE_MAPS_API_KEY") as? String)
             ?: System.getenv("GOOGLE_MAPS_API_KEY")
+            ?: envMapsKey.takeIf { it.isNotEmpty() }
             ?: ""
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = mapsApiKey
     }

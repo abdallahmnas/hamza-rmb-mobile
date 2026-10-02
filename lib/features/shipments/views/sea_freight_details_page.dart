@@ -6,6 +6,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/widgets/app_bar_logo_title.dart';
+import '../../home/data/models/facility_model.dart';
 import '../../home/presentation/providers/system_metadata_provider.dart';
 
 class SeaFreightDetailsPage extends ConsumerStatefulWidget {
@@ -38,11 +39,22 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
   double get _totalNgn => _totalUsd * _ngnPerUsd;
 
   void _copySeaWarehouseAddress() {
+    final authState = ref.read(authServiceProvider);
+    final isLoggedIn = authState.isLoggedIn;
+    final customerId = authState.user?.customerId ?? 'HZ-SEA';
+    final userFullName = authState.user?.fullName.isNotEmpty == true
+        ? authState.user!.fullName
+        : 'Hamza RMB Client';
+    final chinaFacilities = ref.read(facilitiesProvider).where((f) => f.isChina).toList();
+    final hub = chinaFacilities.isNotEmpty ? chinaFacilities.first : null;
+    final addressText = hub != null
+        ? (isLoggedIn
+            ? '${hub.name}: ${hub.address}\nRecipient: $userFullName ($customerId)\nPhone: ${hub.contactPhone}'
+            : '${hub.name}: ${hub.address}\nContact: ${hub.contactName} (${hub.contactPhone})')
+        : 'Hamza Sea Freight Logistics Hub, Nanhai District, Foshan, Guangdong, China\nCode: $customerId';
+
     Clipboard.setData(
-      const ClipboardData(
-        text:
-            'Hamza Sea Freight Logistics Hub, Nanhai District, Foshan, Guangdong, China\nCode: HZ-SEA-8992',
-      ),
+      ClipboardData(text: addressText),
     );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1282,15 +1294,15 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
   // ── Sea Freight Warehouse Facilities Address Section ─────────────────────
   Widget _buildWarehouseAddressSection() {
     final authState = ref.watch(authServiceProvider);
-    if (!authState.isLoggedIn) {
-      return const SizedBox.shrink();
-    }
+    final isLoggedIn = authState.isLoggedIn;
+    final facilities = ref.watch(chinaFacilitiesProvider);
 
-    final facilities = ref.watch(facilitiesProvider);
-    final userFullName = authState.user?.fullName.isNotEmpty == true
+    final userFullName = isLoggedIn && authState.user?.fullName.isNotEmpty == true
         ? authState.user!.fullName
         : 'Hamza RMB Client';
-    final customerId = authState.user?.customerId ?? 'HZ-SEA';
+    final customerId = isLoggedIn && authState.user?.customerId != null
+        ? authState.user!.customerId!
+        : 'HZ-SEA';
 
     return Container(
       width: double.infinity,
@@ -1308,7 +1320,7 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'SEA CARGO RECEIVING & DESTINATION HUBS',
+                'CHINA SEA CARGO RECEIVING HUBS',
                 style: AppTypography.labelCaps.copyWith(
                   color: const Color(0xFF0F766E),
                   fontWeight: FontWeight.w800,
@@ -1323,7 +1335,7 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'OCEAN FREIGHT',
+                  'OCEAN FREIGHT (CN)',
                   style: AppTypography.labelCaps.copyWith(
                     color: const Color(0xFF0D9488),
                     fontWeight: FontWeight.w800,
@@ -1335,16 +1347,63 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Choose where your overseas supplier delivers your container pallets in China or pick your preferred destination collection hub in Nigeria.',
+            'Instruct your 1688 manufacturer or Taobao supplier to deliver container pallets to these China consolidation hubs.',
             style: AppTypography.bodySm.copyWith(
               color: const Color(0xFF475569),
               fontSize: 11.5,
             ),
           ),
           const SizedBox(height: 12),
+          if (!isLoggedIn) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_outline_rounded,
+                      size: 16, color: Color(0xFFB45309)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Log in to view your unique Customer ID and personal shipping mark.',
+                      style: AppTypography.bodySm.copyWith(
+                        color: const Color(0xFF92400E),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => context.push('/login'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFB45309),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Log In',
+                        style: AppTypography.labelCaps.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           ...facilities.map((facility) {
-            final isChina = facility.isChina;
-            final addressText = isChina
+            final addressText = isLoggedIn
                 ? '${facility.address}\nRecipient: $userFullName ($customerId)\nPhone: ${facility.contactPhone}'
                 : '${facility.address}\nContact: ${facility.contactName} (${facility.contactPhone})';
 
@@ -1361,19 +1420,13 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isChina
-                          ? const Color(0xFFEFF6FF)
-                          : const Color(0xFFF0FDF4),
+                      color: const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
-                      isChina
-                          ? Icons.directions_boat_outlined
-                          : Icons.warehouse_outlined,
+                    child: const Icon(
+                      Icons.directions_boat_outlined,
                       size: 20,
-                      color: isChina
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFF16A34A),
+                      color: Color(0xFF2563EB),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1420,8 +1473,8 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (isChina) ...[
-                          const SizedBox(height: 3),
+                        const SizedBox(height: 3),
+                        if (isLoggedIn)
                           Text(
                             'Marking: $userFullName ($customerId)',
                             style: AppTypography.labelCaps.copyWith(
@@ -1429,8 +1482,16 @@ class _SeaFreightDetailsPageState extends ConsumerState<SeaFreightDetailsPage> {
                               fontWeight: FontWeight.w700,
                               fontSize: 10,
                             ),
+                          )
+                        else
+                          Text(
+                            'Contact: ${facility.contactName} (${facility.contactPhone})',
+                            style: AppTypography.labelCaps.copyWith(
+                              color: const Color(0xFF0D9488),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 9.5,
+                            ),
                           ),
-                        ],
                       ],
                     ),
                   ),

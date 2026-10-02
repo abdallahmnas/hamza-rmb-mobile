@@ -49,3 +49,8 @@ app.*.map.json
 .claude/settings.example
 .claude/
 .vscode/
+
+# Environment files
+.env
+.env.*
+!.env.example
