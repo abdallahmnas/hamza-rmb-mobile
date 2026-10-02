@@ -24,6 +24,14 @@ class _MyClearanceRequestsPageState
   final List<String> _filters = const ['All', 'Active', 'Completed', 'Cancelled'];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(customsClearanceProvider.notifier).fetchRequests();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -132,9 +140,7 @@ class _MyClearanceRequestsPageState
 
                       int count = 0;
                       if (filter == 'All') {
-                        count = clearanceState.requests
-                            .where((r) => r.status != ClearanceStatus.draft)
-                            .length;
+                        count = clearanceState.requests.length;
                       } else if (filter == 'Active') {
                         count = clearanceState.activeRequests.length;
                       } else if (filter == 'Completed') {
@@ -217,16 +223,32 @@ class _MyClearanceRequestsPageState
 
           // ── Requests Cards List ─────────────────────────────────────────
           Expanded(
-            child: list.isEmpty
-                ? _buildEmptyState(selectedFilter)
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: list.length,
-                    itemBuilder: (context, index) {
-                      final item = list[index];
-                      return _buildRequestCard(context, item);
-                    },
-                  ),
+            child: RefreshIndicator(
+              onRefresh: () =>
+                  ref.read(customsClearanceProvider.notifier).fetchRequests(),
+              color: AppColors.primary,
+              child: clearanceState.isLoading && clearanceState.requests.isEmpty
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
+                    )
+                  : list.isEmpty
+                      ? SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.6,
+                            child: _buildEmptyState(selectedFilter),
+                          ),
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(16),
+                          itemCount: list.length,
+                          itemBuilder: (context, index) {
+                            final item = list[index];
+                            return _buildRequestCard(context, item);
+                          },
+                        ),
+            ),
           ),
         ],
       ),

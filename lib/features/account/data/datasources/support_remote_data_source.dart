@@ -10,6 +10,10 @@ abstract class SupportRemoteDataSource {
     required String category,
     required String description,
     String? priority,
+    String? message,
+    String? referenceId,
+    String? imageUrl,
+    List<String>? attachments,
   });
 
   Future<List<TicketModel>> fetchTickets();
@@ -33,25 +37,35 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
     required String category,
     required String description,
     String? priority,
+    String? message,
+    String? referenceId,
+    String? imageUrl,
+    List<String>? attachments,
   }) async {
     try {
       final body = <String, dynamic>{
         'subject': subject,
         'category': category.toLowerCase(),
         'description': description,
+        'message': message ?? description,
+        if (priority != null && priority.isNotEmpty)
+          'priority': priority.toLowerCase(),
+        if (referenceId != null && referenceId.isNotEmpty)
+          'referenceId': referenceId,
+        if (imageUrl != null && imageUrl.isNotEmpty)
+          'imageUrl': imageUrl,
+        if (attachments != null && attachments.isNotEmpty)
+          'attachments': attachments,
       };
-      if (priority != null && priority.isNotEmpty) {
-        body['priority'] = priority.toLowerCase();
-      }
       final response = await _dio.post<dynamic>(
         '/support/tickets',
         data: body,
       );
       final data = response.data;
-      if (data is Map<String, dynamic>) {
+      if (data is Map) {
         final tJson = data['data'] ?? data;
-        if (tJson is Map<String, dynamic>) {
-          return TicketModel.fromJson(tJson);
+        if (tJson is Map) {
+          return TicketModel.fromJson(Map<String, dynamic>.from(tJson));
         }
       }
       return TicketModel(
@@ -60,6 +74,9 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
         category: category,
         description: description,
         priority: priority ?? 'medium',
+        referenceId: referenceId,
+        imageUrl: imageUrl,
+        attachments: attachments ?? const [],
         createdAt: DateTime.now(),
       );
     } on DioException catch (e) {
@@ -75,13 +92,18 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
       final response = await _dio.get<dynamic>('/support/tickets');
       final data = response.data;
       List<dynamic> list = [];
-      if (data is Map<String, dynamic>) {
-        list = (data['data'] as List<dynamic>?) ?? [];
-      } else if (data is List<dynamic>) {
+      if (data is Map) {
+        if (data['data'] is List) {
+          list = data['data'] as List;
+        } else if (data['tickets'] is List) {
+          list = data['tickets'] as List;
+        }
+      } else if (data is List) {
         list = data;
       }
       return list
-          .map((item) => TicketModel.fromJson(item as Map<String, dynamic>))
+          .whereType<Map<dynamic, dynamic>>()
+          .map((item) => TicketModel.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to load tickets');
@@ -95,10 +117,10 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
     try {
       final response = await _dio.get<dynamic>('/support/tickets/$id');
       final data = response.data;
-      if (data is Map<String, dynamic>) {
-        final tJson = data['data'] ?? data;
-        if (tJson is Map<String, dynamic>) {
-          return TicketModel.fromJson(tJson);
+      if (data is Map) {
+        final tJson = data['data'] ?? data['ticket'] ?? data;
+        if (tJson is Map) {
+          return TicketModel.fromJson(Map<String, dynamic>.from(tJson));
         }
       }
       throw ApiError('Ticket not found');
@@ -115,19 +137,15 @@ class SupportRemoteDataSourceImpl implements SupportRemoteDataSource {
     required String message,
   }) async {
     try {
-      final formData = FormData.fromMap({
-        'ticketId': ticketId,
-        'message': message,
-      });
       final response = await _dio.post<dynamic>(
-        '/support',
-        data: formData,
+        '/support/tickets/$ticketId/reply',
+        data: {'message': message},
       );
       final data = response.data;
-      if (data is Map<String, dynamic>) {
-        final tJson = data['data'] ?? data;
-        if (tJson is Map<String, dynamic>) {
-          return TicketModel.fromJson(tJson);
+      if (data is Map) {
+        final tJson = data['data'] ?? data['ticket'] ?? data;
+        if (tJson is Map) {
+          return TicketModel.fromJson(Map<String, dynamic>.from(tJson));
         }
       }
       return TicketModel(

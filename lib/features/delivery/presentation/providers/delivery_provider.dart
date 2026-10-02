@@ -55,6 +55,7 @@ class DeliveryState {
 
 class DeliveryNotifier extends Notifier<DeliveryState> {
   static const String _storageKey = 'cache_local_deliveries';
+  static const String _vehiclesStorageKey = 'cache_delivery_vehicles';
 
   @override
   DeliveryState build() {
@@ -69,7 +70,25 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
             .toList();
       } catch (_) {}
     }
-    return DeliveryState(deliveries: cached, isLoading: cached.isEmpty);
+
+    List<DeliveryVehicleModel> cachedVehicles = [];
+    final vJson = storage.getString(_vehiclesStorageKey);
+    if (vJson != null) {
+      try {
+        final list = jsonDecode(vJson) as List<dynamic>;
+        cachedVehicles = list
+            .map((e) => DeliveryVehicleModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (_) {}
+    }
+
+    Future.microtask(() => fetchAll());
+
+    return DeliveryState(
+      deliveries: cached,
+      vehicles: cachedVehicles,
+      isLoading: cached.isEmpty,
+    );
   }
 
   Future<void> fetchAll({bool isUserInitiated = false}) async {
@@ -92,6 +111,12 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
         _storageKey,
         jsonEncode(freshDeliveries.map((e) => e.toJson()).toList()),
       );
+      if (freshVehicles.isNotEmpty) {
+        await storage.setString(
+          _vehiclesStorageKey,
+          jsonEncode(freshVehicles.map((e) => e.toJson()).toList()),
+        );
+      }
 
       state = state.copyWith(
         deliveries: freshDeliveries,
@@ -126,24 +151,63 @@ class DeliveryNotifier extends Notifier<DeliveryState> {
   }
 
   Future<LocalDeliveryModel?> scheduleDelivery({
-    required String consolidationId,
-    required String deliveryAddress,
-    required String recipientName,
-    required String recipientPhone,
-    String? deliveryVehicleId,
-    String? itemPhotoUrl,
+    required String pickupAddress,
+    String pickupCity = 'Lagos',
+    String pickupContactName = 'Warehouse Admin',
+    String pickupPhone = '+2348090219021',
+    String pickupEmail = 'pickup@logistics.com',
+    required double pickupLat,
+    required double pickupLng,
+    required String dropoffAddress,
+    String dropoffCity = 'Lagos',
+    required String dropoffContactName,
+    required String dropoffPhone,
+    String dropoffEmail = 'customer@example.com',
+    required double dropoffLat,
+    required double dropoffLng,
+    required String customerEmail,
+    required String customerPhone,
+    required String packageDescription,
+    List<String>? imageUrls,
+    required String vehicleId,
+    required String vehicleType,
+    required double distanceKm,
+    String paymentMethod = 'wallet',
+    String? consolidationId,
   }) async {
     state = state.copyWith(isSubmitting: true, error: null);
     try {
       final remote = ref.read(deliveryRemoteDataSourceProvider);
-      final photoToUse = itemPhotoUrl ?? state.uploadedPhotoUrl;
+      final List<String> finalImages = [
+        if (imageUrls != null) ...imageUrls,
+        if (imageUrls == null && state.uploadedPhotoUrl != null && state.uploadedPhotoUrl!.isNotEmpty)
+          state.uploadedPhotoUrl!,
+      ];
+
       final delivery = await remote.requestDelivery(
+        pickupAddress: pickupAddress,
+        pickupCity: pickupCity,
+        pickupContactName: pickupContactName,
+        pickupPhone: pickupPhone,
+        pickupEmail: pickupEmail,
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        dropoffAddress: dropoffAddress,
+        dropoffCity: dropoffCity,
+        dropoffContactName: dropoffContactName,
+        dropoffPhone: dropoffPhone,
+        dropoffEmail: dropoffEmail,
+        dropoffLat: dropoffLat,
+        dropoffLng: dropoffLng,
+        customerEmail: customerEmail,
+        customerPhone: customerPhone,
+        packageDescription: packageDescription,
+        imageUrls: finalImages,
+        vehicleId: vehicleId,
+        vehicleType: vehicleType,
+        distanceKm: distanceKm,
+        paymentMethod: paymentMethod,
         consolidationId: consolidationId,
-        deliveryAddress: deliveryAddress,
-        recipientName: recipientName,
-        recipientPhone: recipientPhone,
-        deliveryVehicleId: deliveryVehicleId,
-        itemPhotoUrl: photoToUse,
       );
 
       final updatedList = [delivery, ...state.deliveries];

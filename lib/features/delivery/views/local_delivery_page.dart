@@ -1,14 +1,19 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/auth/auth_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/google_maps_service.dart';
 import '../../../core/widgets/app_button.dart';
@@ -32,18 +37,21 @@ class LocalDeliveryPage extends ConsumerStatefulWidget {
 }
 
 class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   final _formKey = GlobalKey<FormState>();
+  final _packageDescriptionController = TextEditingController();
   final _recipientNameController = TextEditingController();
   final _recipientPhoneController = TextEditingController();
+  final _recipientEmailController = TextEditingController();
   final _addressController = TextEditingController();
   final _cityStateController = TextEditingController(text: 'Abuja, Nigeria');
   final _notesController = TextEditingController();
 
   LocationModel? _pickupLocation;
   LocationModel? _deliveryLocation;
+  GoogleMapController? _routeMapController;
 
   String? _selectedConsolidationId;
   String? _selectedVehicleId;
@@ -55,16 +63,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    // Initialize default pickup location in Abuja Central Hub
-    _pickupLocation = const LocationModel(
-      address: 'Plot 1024, Shehu Shagari Way, Central Business District, Abuja, Nigeria',
-      latitude: AppConstants.defaultLatitude,
-      longitude: AppConstants.defaultLongitude,
-      name: 'Hamza RMB Logistics Hub (Abuja)',
-      city: 'Abuja',
-      state: 'FCT',
-      country: 'Nigeria',
-    );
+    _pickupLocation = null;
 
     Future.microtask(() {
       ref.read(deliveryProvider.notifier).fetchAll();
@@ -76,12 +75,58 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _packageDescriptionController.dispose();
     _recipientNameController.dispose();
     _recipientPhoneController.dispose();
+    _recipientEmailController.dispose();
     _addressController.dispose();
     _cityStateController.dispose();
     _notesController.dispose();
+    _routeMapController?.dispose();
     super.dispose();
+  }
+
+  void _fitRouteBounds() {
+    if (_routeMapController == null) return;
+    if (_pickupLocation != null && _deliveryLocation != null) {
+      final p1 = LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude);
+      final p2 = LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude);
+      if ((p1.latitude - p2.latitude).abs() < 0.0001 &&
+          (p1.longitude - p2.longitude).abs() < 0.0001) {
+        _routeMapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(p1, 15.0),
+        );
+      } else {
+        final southwest = LatLng(
+          math.min(p1.latitude, p2.latitude),
+          math.min(p1.longitude, p2.longitude),
+        );
+        final northeast = LatLng(
+          math.max(p1.latitude, p2.latitude),
+          math.max(p1.longitude, p2.longitude),
+        );
+        _routeMapController!.animateCamera(
+          CameraUpdate.newLatLngBounds(
+            LatLngBounds(southwest: southwest, northeast: northeast),
+            48.0,
+          ),
+        );
+      }
+    } else if (_pickupLocation != null) {
+      _routeMapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude),
+          15.0,
+        ),
+      );
+    } else if (_deliveryLocation != null) {
+      _routeMapController!.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude),
+          15.0,
+        ),
+      );
+    }
   }
 
   Future<void> _pickPickupLocation() async {
@@ -89,6 +134,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
       MaterialPageRoute(
         builder: (context) => LocationPickerPage(
           title: 'Select Pickup / Origin Location',
+          type: LocationPickerType.pickup,
           initialLocation: _pickupLocation,
         ),
       ),
@@ -97,6 +143,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
       setState(() {
         _pickupLocation = result;
       });
+      Future.delayed(const Duration(milliseconds: 300), _fitRouteBounds);
     }
   }
 
@@ -105,6 +152,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
       MaterialPageRoute(
         builder: (context) => LocationPickerPage(
           title: 'Select Destination / Delivery Location',
+          type: LocationPickerType.delivery,
           initialLocation: _deliveryLocation,
         ),
       ),
@@ -117,6 +165,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
           _cityStateController.text = '${result.city}, ${result.state}';
         }
       });
+      Future.delayed(const Duration(milliseconds: 300), _fitRouteBounds);
     }
   }
 
@@ -172,46 +221,96 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_deliveryLocation == null && _addressController.text.trim().isEmpty) {
+    if (_pickupLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a delivery location on Google Maps'),
+          content: Text('Please select a pickup / origin location on Google Maps'),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
 
-    if (_selectedConsolidationId == null || _selectedConsolidationId!.isEmpty) {
+    if (_deliveryLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a consignment/package to deliver'),
+          content: Text('Please select a delivery destination on Google Maps'),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
 
-    final deliveryDest = _deliveryLocation?.address ?? _addressController.text.trim();
-    final pickupSource = _pickupLocation?.address ?? 'Hamza RMB Abuja Hub';
-    final fullAddress = '$deliveryDest [Pickup: $pickupSource]';
+    final vehicles = ref.read(deliveryProvider).vehicles.isNotEmpty
+        ? ref.read(deliveryProvider).vehicles
+        : ref.read(systemMetadataProvider).vehicles.isNotEmpty
+            ? ref.read(systemMetadataProvider).vehicles
+            : _getFallbackVehicles();
+
+    final selectedVehicle = vehicles.firstWhere(
+      (v) => v.id == _selectedVehicleId,
+      orElse: () => vehicles.first,
+    );
+
+    final distanceKm = _getCalculatedDistanceKm();
+    final user = ref.read(authServiceProvider).user;
+    final customerEmail = (user?.email != null && user!.email.isNotEmpty)
+        ? user.email
+        : 'customer@hamzarmb.com';
+    final customerPhone = (user?.phone != null && user!.phone.isNotEmpty)
+        ? user.phone
+        : _recipientPhoneController.text.trim();
+
+    final photoUrl = ref.read(deliveryProvider).uploadedPhotoUrl;
+    final imageUrls = photoUrl != null && photoUrl.isNotEmpty ? [photoUrl] : <String>[];
+
+    final pickupCity = _pickupLocation!.city?.isNotEmpty == true
+        ? _pickupLocation!.city!
+        : 'Lagos';
+    final dropoffCity = _deliveryLocation!.city?.isNotEmpty == true
+        ? _deliveryLocation!.city!
+        : 'Lagos';
 
     final result = await ref.read(deliveryProvider.notifier).scheduleDelivery(
-          consolidationId: _selectedConsolidationId!,
-          deliveryAddress: fullAddress,
-          recipientName: _recipientNameController.text.trim(),
-          recipientPhone: _recipientPhoneController.text.trim(),
-          deliveryVehicleId: _selectedVehicleId,
-        );
+      pickupAddress: _pickupLocation!.address,
+      pickupCity: pickupCity,
+      pickupContactName: 'Warehouse Admin',
+      pickupPhone: '+2348090219021',
+      pickupEmail: 'pickup@logistics.com',
+      pickupLat: _pickupLocation!.latitude,
+      pickupLng: _pickupLocation!.longitude,
+      dropoffAddress: _deliveryLocation!.address,
+      dropoffCity: dropoffCity,
+      dropoffContactName: _recipientNameController.text.trim(),
+      dropoffPhone: _recipientPhoneController.text.trim(),
+      dropoffEmail: _recipientEmailController.text.trim().isNotEmpty
+          ? _recipientEmailController.text.trim()
+          : customerEmail,
+      dropoffLat: _deliveryLocation!.latitude,
+      dropoffLng: _deliveryLocation!.longitude,
+      customerEmail: customerEmail,
+      customerPhone: customerPhone,
+      packageDescription: _packageDescriptionController.text.trim(),
+      imageUrls: imageUrls,
+      vehicleId: selectedVehicle.id,
+      vehicleType: selectedVehicle.type,
+      distanceKm: distanceKm,
+      paymentMethod: 'wallet',
+      consolidationId: _selectedConsolidationId,
+    );
 
     if (result != null && mounted) {
       _showSuccessDialog(result);
+      _packageDescriptionController.clear();
       _recipientNameController.clear();
       _recipientPhoneController.clear();
+      _recipientEmailController.clear();
       _addressController.clear();
       _notesController.clear();
       setState(() {
+        _pickupLocation = null;
         _deliveryLocation = null;
+        _selectedConsolidationId = null;
         _localImageFile = null;
       });
     } else if (mounted) {
@@ -604,6 +703,12 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                 isPickup: false,
               ),
 
+              // Embedded Interactive Google Map Route Display
+              if (_pickupLocation != null || _deliveryLocation != null) ...[
+                const SizedBox(height: 14),
+                _buildRouteMapPreview(),
+              ],
+
               // Route & Distance Summary banner if destination is selected
               if (_deliveryLocation != null) ...[
                 const SizedBox(height: 12),
@@ -613,7 +718,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
               const SizedBox(height: 20),
 
               // ── 2. Select Consignment / Package ──────────────────────────────
-              _buildSectionTitle('2. Select Consignment or Package', Icons.inventory_2_outlined),
+              _buildSectionTitle('2. Select Consignment or Package (Optional)', Icons.inventory_2_outlined),
               const SizedBox(height: 8),
 
               Container(
@@ -622,25 +727,24 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: DropdownButtonFormField<String>(
+                child: DropdownButtonFormField<String?>(
                   initialValue: _selectedConsolidationId,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     border: InputBorder.none,
-                    hintText: 'Choose arrived batch, waybill or parcel',
+                    hintText: 'None / Direct dispatch (Optional)',
                   ),
                   items: [
-                    if (arrivedPackages.isEmpty && consolidations.isEmpty)
-                      const DropdownMenuItem(
-                        value: 'HZ-CON-ABUJA-DEFAULT',
-                        child: Text('HZ-CON-90218 (Abuja Hub - 8.5 kg)'),
-                      ),
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('None / Direct Package Dispatch (Optional)'),
+                    ),
                     ...arrivedPackages.map((pkg) {
                       final title = pkg.trackingNumber.isNotEmpty
                           ? '${pkg.trackingNumber} (${pkg.weightKg > 0 ? "${pkg.weightKg}kg" : "Arrived"})'
                           : 'Package ${pkg.id}';
-                      return DropdownMenuItem<String>(
+                      return DropdownMenuItem<String?>(
                         value: pkg.trackingNumber.isNotEmpty ? pkg.trackingNumber : pkg.id,
                         child: Text(
                           title,
@@ -653,7 +757,7 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                       final title = con.consolidationId.isNotEmpty
                           ? '${con.consolidationId} (${con.shippingMethod.toUpperCase()} - Arrived)'
                           : 'Consolidation ${con.id}';
-                      return DropdownMenuItem<String>(
+                      return DropdownMenuItem<String?>(
                         value: con.consolidationId.isNotEmpty ? con.consolidationId : con.id,
                         child: Text(
                           title,
@@ -668,22 +772,30 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                       _selectedConsolidationId = val;
                     });
                   },
-                  validator: (val) =>
-                      val == null || val.isEmpty ? 'Please select a consignment' : null,
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              // ── 3. Recipient Information ─────────────────────────────────────
-              _buildSectionTitle('3. Recipient Information', Icons.person_outline_rounded),
+              // ── 3. Package & Recipient Information ─────────────────────────────────────
+              _buildSectionTitle('3. Package & Recipient Information', Icons.badge_outlined),
               const SizedBox(height: 8),
 
               AppTextField(
+                controller: _packageDescriptionController,
+                labelText: 'Package Description / Items *',
+                hintText: 'e.g. Electronics & Spare Parts, Clothing, Documents',
+                prefixIcon: const Icon(Icons.inventory_2_outlined, size: 20),
+                validator: (val) =>
+                    val == null || val.trim().isEmpty ? 'Please enter package description' : null,
+              ),
+              const SizedBox(height: 12),
+
+              AppTextField(
                 controller: _recipientNameController,
-                labelText: 'Recipient Full Name',
-                hintText: 'e.g. Babatunde Lawal',
-                prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+                labelText: 'Recipient Full Name *',
+                hintText: 'e.g. Bayo Adebayo',
+                prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
                 validator: (val) =>
                     val == null || val.trim().isEmpty ? 'Enter recipient name' : null,
               ),
@@ -691,8 +803,8 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
 
               AppTextField(
                 controller: _recipientPhoneController,
-                labelText: 'Contact Phone Number',
-                hintText: '+234 801 234 5678',
+                labelText: 'Recipient Phone Number *',
+                hintText: '+234 801 111 2222',
                 keyboardType: TextInputType.phone,
                 prefixIcon: const Icon(Icons.phone_outlined, size: 20),
                 validator: (val) =>
@@ -701,8 +813,17 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
               const SizedBox(height: 12),
 
               AppTextField(
+                controller: _recipientEmailController,
+                labelText: 'Recipient Email Address (Optional)',
+                hintText: 'e.g. bayo@example.com',
+                keyboardType: TextInputType.emailAddress,
+                prefixIcon: const Icon(Icons.email_outlined, size: 20),
+              ),
+              const SizedBox(height: 12),
+
+              AppTextField(
                 controller: _notesController,
-                labelText: 'Delivery Instructions / House Landmark',
+                labelText: 'Delivery Instructions / House Landmark (Optional)',
                 hintText: 'e.g. Opposite Central Mosque, Black Gate, call on arrival',
                 maxLines: 2,
                 prefixIcon: const Icon(Icons.notes_rounded, size: 20),
@@ -712,10 +833,20 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
 
               // ── 4. Vehicle Fleet Selection ──────────────────────────────────
               _buildSectionTitle('4. Choose Dispatch Vehicle', Icons.directions_car_filled_outlined),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
 
-              Column(
-                children: vehicles.map((vehicle) {
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: vehicles.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 0.88,
+                ),
+                itemBuilder: (context, index) {
+                  final vehicle = vehicles[index];
                   final isSelected = vehicle.id == _selectedVehicleId;
                   final vehicleFare = _calculateVehicleFare(vehicle);
 
@@ -725,9 +856,9 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                         _selectedVehicleId = vehicle.id;
                       });
                     },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isSelected ? const Color(0xFFF0FDF4) : AppColors.surface,
                         borderRadius: BorderRadius.circular(14),
@@ -735,95 +866,105 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                           color: isSelected ? AppColors.secondary : const Color(0xFFE2E8F0),
                           width: isSelected ? 2 : 1,
                         ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.secondary.withValues(alpha: 0.12),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
                       ),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.secondary.withValues(alpha: 0.15)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              _getVehicleIcon(vehicle.type),
-                              color: isSelected ? AppColors.secondary : const Color(0xFF64748B),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      vehicle.name,
-                                      style: AppTypography.bodyMd.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE2E8F0),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'Max ${vehicle.maxWeightKg.toStringAsFixed(0)}kg',
-                                        style: AppTypography.labelCaps.copyWith(
-                                          fontSize: 9,
-                                          color: const Color(0xFF334155),
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  vehicle.description,
-                                  style: AppTypography.bodySm.copyWith(
-                                    color: const Color(0xFF64748B),
-                                    fontSize: 11,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                '₦${vehicleFare.toStringAsFixed(0)}',
-                                style: AppTypography.bodyMd.copyWith(
-                                  fontWeight: FontWeight.w900,
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? AppColors.secondary.withValues(alpha: 0.15)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _getVehicleIcon(vehicle.type),
+                                  color: isSelected
+                                      ? AppColors.secondary
+                                      : const Color(0xFF64748B),
+                                  size: 20,
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle_rounded,
                                   color: AppColors.secondary,
-                                  fontSize: 15,
+                                  size: 20,
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${vehicle.maxWeightKg.toStringAsFixed(0)}kg',
+                                    style: AppTypography.labelCaps.copyWith(
+                                      fontSize: 8.5,
+                                      color: const Color(0xFF475569),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '₦${vehicle.baseFare.toStringAsFixed(0)} + ₦${vehicle.perKmRate.toStringAsFixed(0)}/km',
-                                style: AppTypography.bodySm.copyWith(
-                                  color: const Color(0xFF94A3B8),
-                                  fontSize: 10,
-                                ),
-                              ),
                             ],
+                          ),
+                          const Spacer(),
+                          Text(
+                            vehicle.name,
+                            style: AppTypography.bodyMd.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            vehicle.description,
+                            style: AppTypography.bodySm.copyWith(
+                              color: const Color(0xFF64748B),
+                              fontSize: 10,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '₦${vehicleFare.toStringAsFixed(0)}',
+                            style: AppTypography.bodyMd.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: isSelected ? AppColors.secondary : AppColors.primary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            '₦${vehicle.baseFare.toStringAsFixed(0)} + ₦${vehicle.perKmRate.toStringAsFixed(0)}/km',
+                            style: AppTypography.bodySm.copyWith(
+                              color: const Color(0xFF94A3B8),
+                              fontSize: 9.5,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   );
-                }).toList(),
+                },
               ),
 
               const SizedBox(height: 20),
@@ -891,6 +1032,37 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                       ],
                     ),
                     const Divider(height: 20, color: Color(0xFFE2E8F0)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Payment Method',
+                          style: AppTypography.bodySm.copyWith(color: const Color(0xFF64748B)),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.account_balance_wallet_rounded, size: 12, color: Color(0xFF16A34A)),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Wallet (Default)',
+                                style: AppTypography.labelCaps.copyWith(
+                                  color: const Color(0xFF16A34A),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16, color: Color(0xFFE2E8F0)),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1223,7 +1395,11 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.consolidationId,
+                          item.consolidationId.isNotEmpty
+                              ? item.consolidationId
+                              : (item.id.isNotEmpty
+                                  ? 'Delivery #${item.id.length > 8 ? item.id.substring(item.id.length - 8) : item.id}'
+                                  : 'Doorstep Delivery'),
                           style: AppTypography.bodyMd.copyWith(
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
@@ -1557,6 +1733,195 @@ class _LocalDeliveryPageState extends ConsumerState<LocalDeliveryPage>
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRouteMapPreview() {
+    final markers = <Marker>{};
+    final polylines = <Polyline>{};
+
+    LatLng centerLatLng;
+    if (_pickupLocation != null && _deliveryLocation != null) {
+      centerLatLng = LatLng(
+        (_pickupLocation!.latitude + _deliveryLocation!.latitude) / 2,
+        (_pickupLocation!.longitude + _deliveryLocation!.longitude) / 2,
+      );
+    } else if (_pickupLocation != null) {
+      centerLatLng = LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude);
+    } else {
+      centerLatLng = LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude);
+    }
+
+    if (_pickupLocation != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('pickup_marker'),
+          position: LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: InfoWindow(
+            title: 'Pickup Location',
+            snippet: _pickupLocation!.shortTitle,
+          ),
+        ),
+      );
+    }
+
+    if (_deliveryLocation != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('dropoff_marker'),
+          position: LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          infoWindow: InfoWindow(
+            title: 'Delivery Destination',
+            snippet: _deliveryLocation!.shortTitle,
+          ),
+        ),
+      );
+    }
+
+    if (_pickupLocation != null && _deliveryLocation != null) {
+      polylines.add(
+        Polyline(
+          polylineId: const PolylineId('route_line'),
+          points: [
+            LatLng(_pickupLocation!.latitude, _pickupLocation!.longitude),
+            LatLng(_deliveryLocation!.latitude, _deliveryLocation!.longitude),
+          ],
+          color: AppColors.primary,
+          width: 5,
+        ),
+      );
+    }
+
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: centerLatLng,
+                zoom: 13.0,
+              ),
+              markers: markers,
+              polylines: polylines,
+              zoomControlsEnabled: false,
+              myLocationEnabled: false,
+              myLocationButtonEnabled: false,
+              compassEnabled: true,
+              mapToolbarEnabled: false,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+              },
+              onMapCreated: (controller) {
+                _routeMapController = controller;
+                _fitRouteBounds();
+              },
+            ),
+
+            // Top Status Badge
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.route_rounded, color: Color(0xFF38BDF8), size: 14),
+                    const SizedBox(width: 5),
+                    Text(
+                      _pickupLocation != null && _deliveryLocation != null
+                          ? 'LIVE ROUTE PREVIEW'
+                          : 'PINPOINT MAP',
+                      style: AppTypography.labelCaps.copyWith(
+                        color: Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.7,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Right Map Controls (+, -, Fit Route)
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_pickupLocation != null && _deliveryLocation != null)
+                    Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      elevation: 3,
+                      child: InkWell(
+                        onTap: _fitRouteBounds,
+                        borderRadius: BorderRadius.circular(8),
+                        child: const Padding(
+                          padding: EdgeInsets.all(7.0),
+                          child: Icon(Icons.fit_screen_rounded, size: 18, color: Color(0xFF0F172A)),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    elevation: 3,
+                    child: InkWell(
+                      onTap: () => _routeMapController?.animateCamera(CameraUpdate.zoomIn()),
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.all(7.0),
+                        child: Icon(Icons.add, size: 18, color: Color(0xFF0F172A)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    elevation: 3,
+                    child: InkWell(
+                      onTap: () => _routeMapController?.animateCamera(CameraUpdate.zoomOut()),
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.all(7.0),
+                        child: Icon(Icons.remove, size: 18, color: Color(0xFF0F172A)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

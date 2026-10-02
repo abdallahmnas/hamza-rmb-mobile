@@ -151,15 +151,45 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
       final response = await _dio.get<dynamic>('/wallet/transactions');
       final data = response.data;
       List<dynamic> list = [];
-      if (data is Map<String, dynamic>) {
-        list = (data['data'] as List<dynamic>?) ?? [];
-      } else if (data is List<dynamic>) {
+
+      if (data is List) {
         list = data;
+      } else if (data is Map) {
+        if (data['data'] is List) {
+          list = data['data'] as List;
+        } else if (data['transactions'] is List) {
+          list = data['transactions'] as List;
+        } else if (data['items'] is List) {
+          list = data['items'] as List;
+        } else if (data['history'] is List) {
+          list = data['history'] as List;
+        } else if (data['ledger'] is List) {
+          list = data['ledger'] as List;
+        } else if (data['data'] is Map) {
+          final inner = data['data'] as Map;
+          if (inner['transactions'] is List) {
+            list = inner['transactions'] as List;
+          } else if (inner['items'] is List) {
+            list = inner['items'] as List;
+          } else if (inner['history'] is List) {
+            list = inner['history'] as List;
+          } else if (inner['data'] is List) {
+            list = inner['data'] as List;
+          }
+        }
       }
-      return list
-          .map((item) =>
-              TransactionModel.fromJson(item as Map<String, dynamic>))
-          .toList();
+
+      final List<TransactionModel> transactions = [];
+      for (final item in list) {
+        if (item is Map) {
+          try {
+            transactions.add(
+              TransactionModel.fromJson(Map<String, dynamic>.from(item)),
+            );
+          } catch (_) {}
+        }
+      }
+      return transactions;
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to load transactions');
     } catch (e) {
@@ -177,15 +207,39 @@ class WalletRemoteDataSourceImpl implements WalletRemoteDataSource {
       final response = await _dio.get<dynamic>(endpoint);
       final data = response.data;
       List<dynamic> list = [];
-      if (data is Map<String, dynamic>) {
-        list = (data['data'] as List<dynamic>?) ?? [];
-      } else if (data is List<dynamic>) {
+
+      if (data is List) {
         list = data;
+      } else if (data is Map) {
+        if (data['data'] is List) {
+          list = data['data'] as List;
+        } else if (data['deposits'] is List) {
+          list = data['deposits'] as List;
+        } else if (data['items'] is List) {
+          list = data['items'] as List;
+        } else if (data['data'] is Map) {
+          final inner = data['data'] as Map;
+          if (inner['deposits'] is List) {
+            list = inner['deposits'] as List;
+          } else if (inner['items'] is List) {
+            list = inner['items'] as List;
+          } else if (inner['data'] is List) {
+            list = inner['data'] as List;
+          }
+        }
       }
-      return list
-          .map((item) =>
-              WalletDepositModel.fromJson(item as Map<String, dynamic>))
-          .toList();
+
+      final List<WalletDepositModel> deposits = [];
+      for (final item in list) {
+        if (item is Map) {
+          try {
+            deposits.add(
+              WalletDepositModel.fromJson(Map<String, dynamic>.from(item)),
+            );
+          } catch (_) {}
+        }
+      }
+      return deposits;
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to load deposit requests');
     } catch (e) {

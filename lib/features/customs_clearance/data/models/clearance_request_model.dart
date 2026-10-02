@@ -125,14 +125,32 @@ class ClearanceDeliveryAddress {
     this.instructions,
   });
 
-  factory ClearanceDeliveryAddress.fromJson(Map<String, dynamic> json) {
-    return ClearanceDeliveryAddress(
-      fullName: json['fullName'] as String? ?? '',
-      phone: json['phone'] as String? ?? '',
-      address: json['address'] as String? ?? '',
-      city: json['city'] as String? ?? '',
-      state: json['state'] as String? ?? '',
-      instructions: json['instructions'] as String?,
+  factory ClearanceDeliveryAddress.fromJson(dynamic json) {
+    if (json is String) {
+      return ClearanceDeliveryAddress(
+        fullName: '',
+        phone: '',
+        address: json,
+        city: '',
+        state: '',
+      );
+    }
+    if (json is Map<String, dynamic>) {
+      return ClearanceDeliveryAddress(
+        fullName: json['fullName'] as String? ?? json['recipientName'] as String? ?? '',
+        phone: json['phone'] as String? ?? json['recipientPhone'] as String? ?? '',
+        address: json['address'] as String? ?? json['deliveryAddress'] as String? ?? '',
+        city: json['city'] as String? ?? '',
+        state: json['state'] as String? ?? '',
+        instructions: json['instructions'] as String? ?? json['deliveryInstructions'] as String?,
+      );
+    }
+    return const ClearanceDeliveryAddress(
+      fullName: '',
+      phone: '',
+      address: '',
+      city: '',
+      state: '',
     );
   }
 
@@ -210,21 +228,34 @@ class ClearanceItem {
     );
   }
 
+  static double _parseNum(dynamic val, [double defaultVal = 0.0]) {
+    if (val == null) return defaultVal;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final sanitized = val.replaceAll(',', '').replaceAll('\$', '').replaceAll('¥', '').trim();
+      return double.tryParse(sanitized) ?? defaultVal;
+    }
+    return defaultVal;
+  }
+
   factory ClearanceItem.fromJson(Map<String, dynamic> json) {
     return ClearanceItem(
-      id: json['id'] as String? ?? '',
-      clearanceRequestId: json['clearanceRequestId'] as String? ?? '',
-      productName: json['productName'] as String? ?? '',
-      description: json['description'] as String? ?? '',
-      category: json['category'] as String? ?? 'General Goods',
-      quantity: (json['quantity'] as num?)?.toDouble() ?? 1.0,
-      unit: json['unit'] as String? ?? 'pieces',
-      purchaseValue: (json['purchaseValue'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] as String? ?? 'USD',
-      countryOfManufacture: json['countryOfManufacture'] as String? ?? 'China',
-      weight: (json['weight'] as num?)?.toDouble(),
-      volume: (json['volume'] as num?)?.toDouble(),
-      hsCode: json['hsCode'] as String?,
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      clearanceRequestId: json['clearanceRequestId']?.toString() ?? '',
+      productName: json['productName']?.toString() ?? json['name']?.toString() ?? json['item']?.toString() ?? 'Item',
+      description: json['description']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'General Goods',
+      quantity: _parseNum(json['quantity'], 1.0),
+      unit: json['unit']?.toString() ?? 'pieces',
+      purchaseValue: _parseNum(
+        json['purchaseValue'] ?? json['value'] ?? json['price'] ?? json['unitPrice'],
+        0.0,
+      ),
+      currency: json['currency']?.toString() ?? 'USD',
+      countryOfManufacture: json['countryOfManufacture']?.toString() ?? 'China',
+      weight: json['weight'] != null ? _parseNum(json['weight']) : null,
+      volume: json['volume'] != null ? _parseNum(json['volume']) : null,
+      hsCode: json['hsCode']?.toString(),
     );
   }
 
@@ -295,17 +326,19 @@ class ClearanceDocument {
 
   factory ClearanceDocument.fromJson(Map<String, dynamic> json) {
     return ClearanceDocument(
-      id: json['id'] as String? ?? '',
-      clearanceRequestId: json['clearanceRequestId'] as String? ?? '',
-      documentType: json['documentType'] as String? ?? '',
-      fileName: json['fileName'] as String? ?? '',
-      fileUrl: json['fileUrl'] as String? ?? '',
-      status: json['status'] as String? ?? 'Uploaded',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      clearanceRequestId: json['clearanceRequestId']?.toString() ?? '',
+      documentType: json['documentType']?.toString() ?? json['type']?.toString() ?? 'Document',
+      fileName: json['fileName']?.toString() ?? json['name']?.toString() ?? '',
+      fileUrl: json['fileUrl']?.toString() ?? json['url']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'Uploaded',
       uploadedAt: json['uploadedAt'] != null
           ? DateTime.tryParse(json['uploadedAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      isNotAvailable: json['isNotAvailable'] as bool? ?? false,
-      note: json['note'] as String?,
+      isNotAvailable: json['isNotAvailable'] == true ||
+          json['isMissingNoted'] == true ||
+          json['isNotAvailable']?.toString() == 'true',
+      note: json['note']?.toString() ?? json['notes']?.toString(),
     );
   }
 
@@ -366,16 +399,26 @@ class ClearanceCharge {
     );
   }
 
+  static double _parseAmount(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final sanitized = val.replaceAll(',', '').replaceAll('₦', '').replaceAll('\$', '').trim();
+      return double.tryParse(sanitized) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   factory ClearanceCharge.fromJson(Map<String, dynamic> json) {
     return ClearanceCharge(
-      id: json['id'] as String? ?? '',
-      clearanceRequestId: json['clearanceRequestId'] as String? ?? '',
-      category: json['category'] as String? ?? 'Service Charges',
-      description: json['description'] as String? ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] as String? ?? 'NGN',
-      isConfirmed: json['isConfirmed'] as bool? ?? false,
-      status: json['status'] as String? ?? 'Pending',
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      clearanceRequestId: json['clearanceRequestId']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'Service Charges',
+      description: json['description']?.toString() ?? json['title']?.toString() ?? '',
+      amount: _parseAmount(json['amount'] ?? json['fee']),
+      currency: json['currency']?.toString() ?? 'NGN',
+      isConfirmed: json['isConfirmed'] == true || json['isConfirmed']?.toString() == 'true',
+      status: json['status']?.toString() ?? 'Pending',
     );
   }
 
@@ -415,19 +458,29 @@ class ClearancePayment {
     this.paymentMethod = 'Wallet Balance',
   });
 
+  static double _parseAmount(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final sanitized = val.replaceAll(',', '').replaceAll('₦', '').replaceAll('\$', '').trim();
+      return double.tryParse(sanitized) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   factory ClearancePayment.fromJson(Map<String, dynamic> json) {
     return ClearancePayment(
-      id: json['id'] as String? ?? '',
-      paymentNumber: json['paymentNumber'] as String? ?? 'Payment #001',
-      clearanceRequestId: json['clearanceRequestId'] as String? ?? '',
-      description: json['description'] as String? ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      currency: json['currency'] as String? ?? 'NGN',
-      status: json['status'] as String? ?? 'Paid',
-      paidAt: json['paidAt'] != null
-          ? DateTime.tryParse(json['paidAt'].toString()) ?? DateTime.now()
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      paymentNumber: json['paymentNumber']?.toString() ?? json['reference']?.toString() ?? 'Payment #001',
+      clearanceRequestId: json['clearanceRequestId']?.toString() ?? '',
+      description: json['description']?.toString() ?? json['title']?.toString() ?? '',
+      amount: _parseAmount(json['amount'] ?? json['value']),
+      currency: json['currency']?.toString() ?? 'NGN',
+      status: json['status']?.toString() ?? 'Paid',
+      paidAt: json['paidAt'] != null || json['createdAt'] != null
+          ? DateTime.tryParse((json['paidAt'] ?? json['createdAt']).toString()) ?? DateTime.now()
           : DateTime.now(),
-      paymentMethod: json['paymentMethod'] as String? ?? 'Wallet Balance',
+      paymentMethod: json['paymentMethod']?.toString() ?? 'Wallet Balance',
     );
   }
 
@@ -562,6 +615,10 @@ class ClearanceRequestModel {
   final List<ClearanceMessage> messages;
   final List<ClearanceStatusHistory> statusHistory;
 
+  final int? totalProductsCount;
+  final double? totalValueUsd;
+  final String? goodsDescription;
+
   final String? requiredActionNote;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -590,22 +647,33 @@ class ClearanceRequestModel {
     this.payments = const [],
     this.messages = const [],
     this.statusHistory = const [],
+    this.totalProductsCount,
+    this.totalValueUsd,
+    this.goodsDescription,
     this.requiredActionNote,
     required this.createdAt,
     required this.updatedAt,
   });
 
   /// Total declared value across all products
-  double get totalValue =>
-      items.fold(0.0, (sum, item) => sum + (item.purchaseValue * item.quantity));
+  double get totalValue {
+    if (items.isNotEmpty) {
+      return items.fold(0.0, (sum, item) => sum + (item.purchaseValue * item.quantity));
+    }
+    return totalValueUsd ?? 0.0;
+  }
 
   /// Primary currency used in goods items
   String get primaryCurrency =>
       items.isNotEmpty ? items.first.currency : 'USD';
 
   /// Total goods quantity count
-  double get totalQuantity =>
-      items.fold(0.0, (sum, item) => sum + item.quantity);
+  double get totalQuantity {
+    if (items.isNotEmpty) {
+      return items.fold(0.0, (sum, item) => sum + item.quantity);
+    }
+    return (totalProductsCount ?? 0).toDouble();
+  }
 
   /// Total weight if available
   double get totalWeight =>
@@ -631,9 +699,17 @@ class ClearanceRequestModel {
 
   /// Brief description of products for list views
   String get itemsSummary {
-    if (items.isEmpty) return 'General Cargo';
-    if (items.length == 1) return items.first.productName;
-    return '${items.first.productName} + ${items.length - 1} more items';
+    if (items.isNotEmpty) {
+      if (items.length == 1) return items.first.productName;
+      return '${items.first.productName} + ${items.length - 1} more items';
+    }
+    if (goodsDescription != null && goodsDescription!.trim().isNotEmpty) {
+      return goodsDescription!.trim();
+    }
+    if (totalProductsCount != null && totalProductsCount! > 0) {
+      return '$totalProductsCount item(s) consignment';
+    }
+    return 'General Cargo';
   }
 
   ClearanceRequestModel copyWith({
@@ -660,6 +736,9 @@ class ClearanceRequestModel {
     List<ClearancePayment>? payments,
     List<ClearanceMessage>? messages,
     List<ClearanceStatusHistory>? statusHistory,
+    int? totalProductsCount,
+    double? totalValueUsd,
+    String? goodsDescription,
     String? requiredActionNote,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -689,6 +768,9 @@ class ClearanceRequestModel {
       payments: payments ?? this.payments,
       messages: messages ?? this.messages,
       statusHistory: statusHistory ?? this.statusHistory,
+      totalProductsCount: totalProductsCount ?? this.totalProductsCount,
+      totalValueUsd: totalValueUsd ?? this.totalValueUsd,
+      goodsDescription: goodsDescription ?? this.goodsDescription,
       requiredActionNote: requiredActionNote ?? this.requiredActionNote,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -696,62 +778,113 @@ class ClearanceRequestModel {
   }
 
   factory ClearanceRequestModel.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id']?.toString() ?? json['_id']?.toString() ?? '';
+    final rawReqNum = json['requestNumber']?.toString() ??
+        json['trackingNumber']?.toString() ??
+        json['reference']?.toString() ??
+        json['request_number']?.toString() ??
+        json['clearanceNumber']?.toString() ??
+        (rawId.isNotEmpty ? 'CLR-$rawId' : 'CLR-REQUEST');
+
+    final rawStatus = (json['status']?.toString() ?? ClearanceStatus.submitted).toUpperCase();
+
+    final rawCreatedAt = json['createdAt'] ?? json['created_at'] ?? json['date'];
+    final rawUpdatedAt = json['updatedAt'] ?? json['updated_at'] ?? rawCreatedAt;
+
+    final parsedItems = json['items'] is List
+        ? (json['items'] as List)
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ClearanceItem.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ClearanceItem>[];
+
+    final parsedDocs = json['documents'] is List
+        ? (json['documents'] as List)
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ClearanceDocument.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ClearanceDocument>[];
+
+    final parsedCharges = json['charges'] is List
+        ? (json['charges'] as List)
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ClearanceCharge.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ClearanceCharge>[];
+
+    final parsedPayments = json['payments'] is List
+        ? (json['payments'] as List)
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ClearancePayment.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ClearancePayment>[];
+
+    final parsedMessages = json['messages'] is List
+        ? (json['messages'] as List)
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ClearanceMessage.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ClearanceMessage>[];
+
+    final parsedHistory = json['statusHistory'] is List
+        ? (json['statusHistory'] as List)
+            .whereType<Map<dynamic, dynamic>>()
+            .map((e) => ClearanceStatusHistory.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ClearanceStatusHistory>[];
+
+    ClearanceDeliveryAddress? parsedAddress;
+    if (json['deliveryAddress'] != null) {
+      parsedAddress = ClearanceDeliveryAddress.fromJson(json['deliveryAddress']);
+    }
+
+    final totalCount = (json['totalProductsCount'] as num?)?.toInt() ??
+        (json['itemsCount'] as num?)?.toInt() ??
+        (parsedItems.isNotEmpty ? parsedItems.length : null);
+
+    final totalVal = (json['totalValueUsd'] as num?)?.toDouble() ??
+        (json['totalValue'] as num?)?.toDouble();
+
+    final desc = json['goodsDescription']?.toString() ??
+        json['description']?.toString() ??
+        json['itemsSummary']?.toString();
+
     return ClearanceRequestModel(
-      id: json['id'] as String? ?? '',
-      requestNumber: json['requestNumber'] as String? ?? '',
-      customerId: json['customerId'] as String? ?? '',
-      shipmentType: json['shipmentType'] as String? ?? 'Sea',
-      originCountry: json['originCountry'] as String? ?? 'China',
-      portOfEntry: json['portOfEntry'] as String? ?? 'Apapa Port',
-      shipmentStatus: json['shipmentStatus'] as String? ?? 'In transit',
-      shippingLine: json['shippingLine'] as String?,
-      airline: json['airline'] as String?,
-      billOfLadingNumber: json['billOfLadingNumber'] as String?,
-      airWaybillNumber: json['airWaybillNumber'] as String?,
-      containerNumber: json['containerNumber'] as String?,
+      id: rawId,
+      requestNumber: rawReqNum,
+      customerId: json['customerId']?.toString() ?? json['userId']?.toString() ?? '',
+      shipmentType: json['shipmentType']?.toString() ?? 'Sea',
+      originCountry: json['originCountry']?.toString() ?? json['country']?.toString() ?? 'China',
+      portOfEntry: json['portOfEntry']?.toString() ?? json['port']?.toString() ?? 'Apapa Port',
+      shipmentStatus: json['shipmentStatus']?.toString() ?? 'In transit',
+      shippingLine: json['shippingLine']?.toString(),
+      airline: json['airline']?.toString(),
+      billOfLadingNumber: json['billOfLadingNumber']?.toString() ?? json['blNumber']?.toString(),
+      airWaybillNumber: json['airWaybillNumber']?.toString() ?? json['awbNumber']?.toString(),
+      containerNumber: json['containerNumber']?.toString() ?? json['containerNo']?.toString(),
       estimatedArrivalDate: json['estimatedArrivalDate'] != null
           ? DateTime.tryParse(json['estimatedArrivalDate'].toString())
           : null,
-      hasMissingShipmentInfo: json['hasMissingShipmentInfo'] as bool? ?? false,
-      status: json['status'] as String? ?? ClearanceStatus.submitted,
-      deliveryPreference:
-          json['deliveryPreference'] as String? ?? 'Deliver to me',
-      deliveryAddress: json['deliveryAddress'] != null
-          ? ClearanceDeliveryAddress.fromJson(
-              json['deliveryAddress'] as Map<String, dynamic>)
-          : null,
-      items: (json['items'] as List<dynamic>?)
-              ?.map((e) => ClearanceItem.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      documents: (json['documents'] as List<dynamic>?)
-              ?.map(
-                  (e) => ClearanceDocument.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      charges: (json['charges'] as List<dynamic>?)
-              ?.map((e) => ClearanceCharge.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      payments: (json['payments'] as List<dynamic>?)
-              ?.map((e) => ClearancePayment.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      messages: (json['messages'] as List<dynamic>?)
-              ?.map((e) => ClearanceMessage.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      statusHistory: (json['statusHistory'] as List<dynamic>?)
-              ?.map((e) =>
-                  ClearanceStatusHistory.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      requiredActionNote: json['requiredActionNote'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+      hasMissingShipmentInfo: json['hasMissingShipmentInfo'] == true ||
+          json['hasMissingShipmentInfo']?.toString() == 'true',
+      status: rawStatus,
+      deliveryPreference: json['deliveryPreference']?.toString() ?? 'Deliver to me',
+      deliveryAddress: parsedAddress,
+      items: parsedItems,
+      documents: parsedDocs,
+      charges: parsedCharges,
+      payments: parsedPayments,
+      messages: parsedMessages,
+      statusHistory: parsedHistory,
+      totalProductsCount: totalCount,
+      totalValueUsd: totalVal,
+      goodsDescription: desc,
+      requiredActionNote: json['requiredActionNote']?.toString(),
+      createdAt: rawCreatedAt != null
+          ? DateTime.tryParse(rawCreatedAt.toString()) ?? DateTime.now()
           : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now()
+      updatedAt: rawUpdatedAt != null
+          ? DateTime.tryParse(rawUpdatedAt.toString()) ?? DateTime.now()
           : DateTime.now(),
     );
   }

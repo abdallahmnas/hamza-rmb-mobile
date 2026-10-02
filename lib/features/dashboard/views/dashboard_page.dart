@@ -30,6 +30,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       ref.read(systemMetadataProvider.notifier).refreshAll();
       ref.read(shipmentsProvider.notifier).fetchAll();
       ref.read(walletProvider.notifier).refresh();
+      ref.read(customsClearanceProvider.notifier).fetchRequests();
     });
   }
 
@@ -58,6 +59,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ref.read(systemMetadataProvider.notifier).refreshAll(isUserInitiated: true),
               ref.read(shipmentsProvider.notifier).fetchAll(isUserInitiated: true),
               ref.read(walletProvider.notifier).refresh(),
+              ref.read(customsClearanceProvider.notifier).fetchRequests(),
               if (isLoggedIn) ref.read(authServiceProvider.notifier).refreshProfile(),
             ]);
           },
@@ -1150,8 +1152,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 172,
-        padding: const EdgeInsets.all(14),
+        height: 182,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -1185,8 +1187,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3.5,
+                    horizontal: 7,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
@@ -1197,14 +1199,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     style: AppTypography.labelCaps.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
-                      fontSize: 9,
+                      fontSize: 8.5,
                       letterSpacing: 0.3,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
 
             // Title
             Text(
@@ -1212,18 +1214,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               style: AppTypography.bodyLg.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
-                fontSize: 16.5,
+                fontSize: 15,
+                letterSpacing: -0.2,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
 
             // Description
             Text(
               description,
               style: AppTypography.bodySm.copyWith(
                 color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 12,
-                height: 1.3,
+                fontSize: 11.5,
+                height: 1.25,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

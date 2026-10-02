@@ -7,12 +7,29 @@ import '../models/local_delivery_model.dart';
 
 abstract class DeliveryRemoteDataSource {
   Future<LocalDeliveryModel> requestDelivery({
-    required String consolidationId,
-    required String deliveryAddress,
-    required String recipientName,
-    required String recipientPhone,
-    String? deliveryVehicleId,
-    String? itemPhotoUrl,
+    required String pickupAddress,
+    String pickupCity = 'Lagos',
+    String pickupContactName = 'Warehouse Admin',
+    String pickupPhone = '+2348090219021',
+    String pickupEmail = 'pickup@logistics.com',
+    required double pickupLat,
+    required double pickupLng,
+    required String dropoffAddress,
+    String dropoffCity = 'Lagos',
+    required String dropoffContactName,
+    required String dropoffPhone,
+    String dropoffEmail = 'customer@example.com',
+    required double dropoffLat,
+    required double dropoffLng,
+    required String customerEmail,
+    required String customerPhone,
+    required String packageDescription,
+    List<String> imageUrls = const [],
+    required String vehicleId,
+    required String vehicleType,
+    required double distanceKm,
+    String paymentMethod = 'wallet',
+    String? consolidationId,
   });
 
   Future<List<LocalDeliveryModel>> fetchDeliveries();
@@ -27,48 +44,106 @@ class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
 
   @override
   Future<LocalDeliveryModel> requestDelivery({
-    required String consolidationId,
-    required String deliveryAddress,
-    required String recipientName,
-    required String recipientPhone,
-    String? deliveryVehicleId,
-    String? itemPhotoUrl,
+    required String pickupAddress,
+    String pickupCity = 'Lagos',
+    String pickupContactName = 'Warehouse Admin',
+    String pickupPhone = '+2348090219021',
+    String pickupEmail = 'pickup@logistics.com',
+    required double pickupLat,
+    required double pickupLng,
+    required String dropoffAddress,
+    String dropoffCity = 'Lagos',
+    required String dropoffContactName,
+    required String dropoffPhone,
+    String dropoffEmail = 'customer@example.com',
+    required double dropoffLat,
+    required double dropoffLng,
+    required String customerEmail,
+    required String customerPhone,
+    required String packageDescription,
+    List<String> imageUrls = const [],
+    required String vehicleId,
+    required String vehicleType,
+    required double distanceKm,
+    String paymentMethod = 'wallet',
+    String? consolidationId,
   }) async {
     try {
       final payload = <String, dynamic>{
-        'consolidationId': consolidationId,
-        'deliveryAddress': deliveryAddress,
-        'recipientName': recipientName,
-        'recipientPhone': recipientPhone,
-        if (deliveryVehicleId != null && deliveryVehicleId.isNotEmpty)
-          'deliveryVehicleId': deliveryVehicleId,
-        if (itemPhotoUrl != null && itemPhotoUrl.isNotEmpty)
-          'itemPhotoUrl': itemPhotoUrl,
+        'pickupAddress': pickupAddress,
+        'pickupCity': pickupCity.isNotEmpty ? pickupCity : 'Lagos',
+        'pickupContactName': pickupContactName.isNotEmpty ? pickupContactName : 'Warehouse Admin',
+        'pickupPhone': pickupPhone.isNotEmpty ? pickupPhone : '+2348090219021',
+        'pickupEmail': pickupEmail.isNotEmpty ? pickupEmail : 'pickup@logistics.com',
+        'pickupLat': pickupLat,
+        'pickupLng': pickupLng,
+        'dropoffAddress': dropoffAddress,
+        'dropoffCity': dropoffCity.isNotEmpty ? dropoffCity : 'Lagos',
+        'dropoffContactName': dropoffContactName,
+        'dropoffPhone': dropoffPhone,
+        'dropoffEmail': dropoffEmail.isNotEmpty ? dropoffEmail : customerEmail,
+        'dropoffLat': dropoffLat,
+        'dropoffLng': dropoffLng,
+        'customerEmail': customerEmail,
+        'customerPhone': customerPhone,
+        'packageDescription': packageDescription,
+        'imageUrls': imageUrls,
+        'vehicleId': vehicleId,
+        'vehicleType': vehicleType,
+        'distanceKm': distanceKm,
+        'paymentMethod': paymentMethod, // 'wallet'
+        if (consolidationId != null && consolidationId.isNotEmpty)
+          'consolidationId': consolidationId,
       };
 
       final response = await _dio.post<dynamic>('/delivery/request', data: payload);
       final data = response.data;
 
-      if (data is Map<String, dynamic>) {
-        final delJson = data['data'] ?? data;
-        if (delJson is Map<String, dynamic>) {
-          return LocalDeliveryModel.fromJson(delJson);
+      if (data is Map) {
+        final delJson = data['data'] ?? data['delivery'] ?? data;
+        if (delJson is Map) {
+          return LocalDeliveryModel.fromJson(Map<String, dynamic>.from(delJson));
         }
       }
 
       return LocalDeliveryModel(
         id: 'del-${DateTime.now().millisecondsSinceEpoch}',
-        consolidationId: consolidationId,
-        deliveryAddress: deliveryAddress,
-        recipientName: recipientName,
-        recipientPhone: recipientPhone,
+        consolidationId: consolidationId ?? '',
+        pickupAddress: pickupAddress,
+        pickupCity: pickupCity,
+        pickupContactName: pickupContactName,
+        pickupPhone: pickupPhone,
+        pickupEmail: pickupEmail,
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        dropoffAddress: dropoffAddress,
+        dropoffCity: dropoffCity,
+        dropoffContactName: dropoffContactName,
+        dropoffPhone: dropoffPhone,
+        dropoffEmail: dropoffEmail,
+        dropoffLat: dropoffLat,
+        dropoffLng: dropoffLng,
+        customerEmail: customerEmail,
+        customerPhone: customerPhone,
+        packageDescription: packageDescription,
+        imageUrls: imageUrls,
+        vehicleId: vehicleId,
+        vehicleType: vehicleType,
+        distanceKm: distanceKm,
+        paymentMethod: paymentMethod,
         pickupPin: '${(1000 + (DateTime.now().millisecond % 9000))}',
         status: 'pending',
-        itemPhotoUrl: itemPhotoUrl,
         createdAt: DateTime.now(),
       );
     } on DioException catch (e) {
-      throw e.error ?? NetworkError(e.message ?? 'Failed to request local delivery');
+      final resData = e.response?.data;
+      String? errorMessage;
+      if (resData is Map) {
+        errorMessage = resData['message']?.toString() ?? resData['error']?.toString();
+      } else if (resData is String && resData.isNotEmpty) {
+        errorMessage = resData;
+      }
+      throw e.error ?? NetworkError(errorMessage ?? e.message ?? 'Failed to request local delivery');
     } catch (e) {
       throw UnknownError(e.toString());
     }
@@ -80,13 +155,20 @@ class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
       final response = await _dio.get<dynamic>('/delivery/deliveries');
       final data = response.data;
       List<dynamic> list = [];
-      if (data is Map<String, dynamic>) {
-        list = (data['data'] as List<dynamic>?) ?? [];
-      } else if (data is List<dynamic>) {
+      if (data is Map) {
+        if (data['data'] is List) {
+          list = data['data'] as List;
+        } else if (data['deliveries'] is List) {
+          list = data['deliveries'] as List;
+        } else if (data['items'] is List) {
+          list = data['items'] as List;
+        }
+      } else if (data is List) {
         list = data;
       }
       return list
-          .map((e) => LocalDeliveryModel.fromJson(e as Map<String, dynamic>))
+          .whereType<Map<dynamic, dynamic>>()
+          .map((e) => LocalDeliveryModel.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to load local deliveries');
@@ -101,13 +183,18 @@ class DeliveryRemoteDataSourceImpl implements DeliveryRemoteDataSource {
       final response = await _dio.get<dynamic>('/delivery/vehicles');
       final data = response.data;
       List<dynamic> list = [];
-      if (data is Map<String, dynamic>) {
-        list = (data['data'] as List<dynamic>?) ?? [];
-      } else if (data is List<dynamic>) {
+      if (data is Map) {
+        if (data['data'] is List) {
+          list = data['data'] as List;
+        } else if (data['vehicles'] is List) {
+          list = data['vehicles'] as List;
+        }
+      } else if (data is List) {
         list = data;
       }
       return list
-          .map((e) => DeliveryVehicleModel.fromJson(e as Map<String, dynamic>))
+          .whereType<Map<dynamic, dynamic>>()
+          .map((e) => DeliveryVehicleModel.fromJson(Map<String, dynamic>.from(e)))
           .toList();
     } on DioException catch (e) {
       throw e.error ?? NetworkError(e.message ?? 'Failed to load vehicles');

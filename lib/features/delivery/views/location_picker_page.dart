@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -303,8 +305,15 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
             myLocationEnabled: false,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
+            zoomGesturesEnabled: true,
+            scrollGesturesEnabled: true,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: true,
             compassEnabled: true,
             mapToolbarEnabled: false,
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+            },
             onMapCreated: (controller) {
               _mapController = controller;
             },
@@ -323,76 +332,78 @@ class _LocationPickerPageState extends ConsumerState<LocationPickerPage> {
           ),
 
           // ── 2. Fixed Center Pin Marker ──────────────────────────────
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 38.0),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                transform: Matrix4.translationValues(
-                  0,
-                  _isMapMoving ? -14 : 0,
-                  0,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Location pin badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: themeColor,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isPickup
-                                ? Icons.storefront_rounded
-                                : Icons.location_on_rounded,
-                            color: Colors.white,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            tagText,
-                            style: AppTypography.labelCaps.copyWith(
-                              color: Colors.white,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
+          IgnorePointer(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 38.0),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  transform: Matrix4.translationValues(
+                    0,
+                    _isMapMoving ? -14 : 0,
+                    0,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Location pin badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: themeColor,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPickup
+                                  ? Icons.storefront_rounded
+                                  : Icons.location_on_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              tagText,
+                              style: AppTypography.labelCaps.copyWith(
+                                color: Colors.white,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    // Pointer Icon
-                    Icon(
-                      Icons.location_pin,
-                      size: 44,
-                      color: themeColor,
-                    ),
-                    // Pin shadow dot
-                    Container(
-                      width: 8,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(4),
+                      const SizedBox(height: 2),
+                      // Pointer Icon
+                      Icon(
+                        Icons.location_pin,
+                        size: 44,
+                        color: themeColor,
                       ),
-                    ),
-                  ],
+                      // Pin shadow dot
+                      Container(
+                        width: 8,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -1,17 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/widgets/app_bar_logo_title.dart';
 import '../data/models/clearance_request_model.dart';
 import '../presentation/providers/customs_clearance_provider.dart';
 
-class CustomsClearanceHomePage extends ConsumerWidget {
+class CustomsClearanceHomePage extends ConsumerStatefulWidget {
   const CustomsClearanceHomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomsClearanceHomePage> createState() =>
+      _CustomsClearanceHomePageState();
+}
+
+class _CustomsClearanceHomePageState
+    extends ConsumerState<CustomsClearanceHomePage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(customsClearanceProvider.notifier).fetchRequests();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final clearanceState = ref.watch(customsClearanceProvider);
     final activeRequest = clearanceState.latestActiveRequest;
 
@@ -36,16 +52,25 @@ class CustomsClearanceHomePage extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
+            icon: Badge(
+              isLabelVisible: clearanceState.requests.isNotEmpty,
+              label: Text('${clearanceState.requests.length}'),
+              child: const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
+            ),
             tooltip: 'My Requests',
             onPressed: () => context.push('/customs-clearance/my-requests'),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: RefreshIndicator(
+        onRefresh: () =>
+            ref.read(customsClearanceProvider.notifier).fetchRequests(),
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // ── Hero Banner ─────────────────────────────────────────────────
             Container(
               width: double.infinity,
@@ -159,7 +184,7 @@ class CustomsClearanceHomePage extends ConsumerWidget {
                             ),
                           ),
                           child: Text(
-                            'My Requests (${clearanceState.requests.where((r) => r.status != ClearanceStatus.draft).length})',
+                            'My Requests (${clearanceState.requests.length})',
                             style: AppTypography.bodyMd.copyWith(
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
@@ -176,13 +201,118 @@ class CustomsClearanceHomePage extends ConsumerWidget {
               ),
             ),
 
-            // ── Active Request Quick Card (If available) ────────────────────
-            if (activeRequest != null) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _buildActiveRequestBanner(context, activeRequest),
+            // ── My Clearance Requests Section ──────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'My Clearance Requests',
+                            style: AppTypography.headlineMd.copyWith(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (clearanceState.requests.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${clearanceState.requests.length}',
+                                style: AppTypography.labelCaps.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (clearanceState.requests.isNotEmpty)
+                        TextButton(
+                          onPressed: () => context.push('/customs-clearance/my-requests'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                'View All',
+                                style: AppTypography.bodySm.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 11,
+                                color: AppColors.primary,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (clearanceState.isLoading && clearanceState.requests.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
+                        ),
+                      ),
+                    )
+                  else if (clearanceState.requests.isEmpty)
+                    _buildEmptyClearanceCard(context)
+                  else ...[
+                    if (activeRequest != null) ...[
+                      _buildActiveRequestBanner(context, activeRequest),
+                      const SizedBox(height: 12),
+                    ],
+                    ...clearanceState.requests
+                        .where((r) => activeRequest == null || r.id != activeRequest.id)
+                        .take(activeRequest != null ? 2 : 3)
+                        .map((req) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildClearanceRequestCard(context, req),
+                            )),
+                  ],
+                ],
               ),
-            ],
+            ),
 
             const SizedBox(height: 24),
 
@@ -414,8 +544,9 @@ class CustomsClearanceHomePage extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildActiveRequestBanner(
       BuildContext context, ClearanceRequestModel request) {
@@ -700,6 +831,222 @@ class CustomsClearanceHomePage extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildClearanceRequestCard(
+      BuildContext context, ClearanceRequestModel req) {
+    Color statusColor;
+    if (req.isActionRequired) {
+      statusColor = const Color(0xFFDC2626);
+    } else if (req.status == ClearanceStatus.awaitingPayment) {
+      statusColor = const Color(0xFFD97706);
+    } else if (req.status == ClearanceStatus.completed ||
+        req.status == ClearanceStatus.customsReleased) {
+      statusColor = const Color(0xFF059669);
+    } else {
+      statusColor = const Color(0xFF2563EB);
+    }
+
+    final dateStr = DateFormat('MMM dd, yyyy').format(req.createdAt);
+
+    return InkWell(
+      onTap: () => context.push(
+        '/customs-clearance/details/${req.id}',
+        extra: req,
+      ),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: req.isActionRequired
+                ? const Color(0xFFFECACA)
+                : const Color(0xFFE2E8F0),
+            width: req.isActionRequired ? 1.5 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: req.shipmentType == 'Sea'
+                            ? const Color(0xFFEFF6FF)
+                            : const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        req.shipmentType == 'Sea'
+                            ? Icons.directions_boat_rounded
+                            : (req.shipmentType == 'Air'
+                                ? Icons.flight_takeoff_rounded
+                                : Icons.local_shipping_rounded),
+                        size: 15,
+                        color: req.shipmentType == 'Sea'
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF059669),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      req.requestNumber,
+                      style: AppTypography.headlineMd.copyWith(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    ClearanceStatus.getLabel(req.status).toUpperCase(),
+                    style: AppTypography.labelCaps.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 8.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${req.itemsSummary} • ${req.portOfEntry}',
+              style: AppTypography.bodySm.copyWith(
+                color: const Color(0xFF64748B),
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  dateStr,
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFF94A3B8),
+                    fontSize: 11,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Details',
+                      style: AppTypography.bodySm.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 10,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyClearanceCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: Color(0xFF2563EB),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No Clearance Requests Yet',
+                  style: AppTypography.bodyMd.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Submit your shipment details to begin tracking.',
+                  style: AppTypography.bodySm.copyWith(
+                    color: const Color(0xFF64748B),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => context.push('/customs-clearance/new'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Start',
+              style: AppTypography.bodySm.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

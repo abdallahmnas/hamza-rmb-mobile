@@ -1,7 +1,7 @@
 class TransactionModel {
   final String id;
   final String title;
-  final String type; // credit / debit
+  final String type; // credit / debit / exchange / topup / deposit / withdrawal / payment
   final double amount;
   final String currency;
   final String status;
@@ -19,24 +19,66 @@ class TransactionModel {
     required this.date,
   });
 
-  bool get isCredit => type.toLowerCase() == 'credit' || type.toLowerCase() == 'topup';
+  bool get isCredit {
+    final t = type.toLowerCase();
+    return t == 'credit' ||
+        t == 'topup' ||
+        t == 'deposit' ||
+        t == 'inflow' ||
+        t.contains('credit');
+  }
+
   DateTime get createdAt => date;
   String get description => title;
 
+  static double _parseAmount(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final sanitized = val.replaceAll(',', '').replaceAll('₦', '').replaceAll('\$', '').trim();
+      return double.tryParse(sanitized) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   factory TransactionModel.fromJson(Map<String, dynamic> json) {
+    final rawDate = json['date'] ??
+        json['createdAt'] ??
+        json['created_at'] ??
+        json['timestamp'] ??
+        json['time'] ??
+        json['updatedAt'];
+
     return TransactionModel(
-      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      id: json['id']?.toString() ??
+          json['_id']?.toString() ??
+          json['reference']?.toString() ??
+          json['txRef']?.toString() ??
+          '',
       title: json['title']?.toString() ??
           json['description']?.toString() ??
+          json['narration']?.toString() ??
+          json['notes']?.toString() ??
+          json['remark']?.toString() ??
+          json['reason']?.toString() ??
           'Wallet Transaction',
-      type: json['type']?.toString() ?? 'debit',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      type: json['type']?.toString() ??
+          json['transactionType']?.toString() ??
+          json['category']?.toString() ??
+          json['action']?.toString() ??
+          'debit',
+      amount: _parseAmount(json['amount'] ?? json['value']),
       currency: json['currency']?.toString() ?? 'NGN',
-      status: json['status']?.toString() ?? 'completed',
-      reference: json['reference']?.toString(),
-      date: json['date'] != null || json['createdAt'] != null
-          ? DateTime.tryParse((json['date'] ?? json['createdAt']).toString()) ??
-              DateTime.now()
+      status: json['status']?.toString() ??
+          json['paymentStatus']?.toString() ??
+          'completed',
+      reference: json['reference']?.toString() ??
+          json['referenceId']?.toString() ??
+          json['txRef']?.toString() ??
+          json['sessionId']?.toString() ??
+          json['id']?.toString(),
+      date: rawDate != null
+          ? DateTime.tryParse(rawDate.toString()) ?? DateTime.now()
           : DateTime.now(),
     );
   }
@@ -52,3 +94,4 @@ class TransactionModel {
         'date': date.toIso8601String(),
       };
 }
+

@@ -16,8 +16,8 @@ class NewTicketPage extends ConsumerStatefulWidget {
 }
 
 class _NewTicketPageState extends ConsumerState<NewTicketPage> {
-  String _selectedCategory = 'Shipping';
-  String _selectedPriority = 'Normal';
+  String _selectedCategory = 'shipment';
+  String _selectedPriority = 'medium';
   final _subjectController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _orderRefController = TextEditingController();
@@ -28,16 +28,23 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
 
-  final _categories = [
-    'Shipping',
-    'Payment',
-    'Account',
-    'Customs',
-    'Warehouse',
-    'Other',
+  final List<Map<String, String>> _categories = const [
+    {'value': 'shipment', 'label': 'Shipment (Air / Sea Logistics)'},
+    {'value': 'payment', 'label': 'Payment & Wallet Top-up'},
+    {'value': 'exchange', 'label': 'RMB / FX Exchange'},
+    {'value': 'procurement', 'label': 'Procurement (1688 / Taobao)'},
+    {'value': 'delivery', 'label': 'Doorstep Delivery'},
+    {'value': 'account', 'label': 'Account & KYC Verification'},
+    {'value': 'clearance', 'label': 'Customs Clearance'},
+    {'value': 'other', 'label': 'Other Enquiry'},
   ];
 
-  final _priorities = ['Low', 'Normal', 'Urgent'];
+  final List<Map<String, String>> _priorities = const [
+    {'value': 'low', 'label': 'Low'},
+    {'value': 'medium', 'label': 'Medium'},
+    {'value': 'high', 'label': 'High'},
+    {'value': 'urgent', 'label': 'Urgent'},
+  ];
 
   @override
   void dispose() {
@@ -161,8 +168,12 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
       final success = await ref.read(supportProvider.notifier).createTicket(
             subject: subject,
             category: _selectedCategory,
-            priority: _selectedPriority.toLowerCase(),
+            priority: _selectedPriority,
             description: descBuffer.toString(),
+            message: description,
+            referenceId: orderRef.isNotEmpty ? orderRef : null,
+            imageUrl: _uploadedAttachmentUrl,
+            attachments: _uploadedAttachmentUrl != null ? [_uploadedAttachmentUrl!] : null,
           );
 
       if (mounted) {
@@ -265,8 +276,8 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
                     items: _categories
                         .map(
                           (c) => DropdownMenuItem(
-                            value: c,
-                            child: Text(c, style: AppTypography.bodyMd),
+                            value: c['value'],
+                            child: Text(c['label']!, style: AppTypography.bodyMd),
                           ),
                         )
                         .toList(),
@@ -412,60 +423,67 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: _priorities.map((p) {
-                  final isSelected = _selectedPriority == p;
-                  Color chipColor;
-                  switch (p) {
-                    case 'Low':
-                      chipColor = AppColors.success;
-                      break;
-                    case 'Normal':
-                      chipColor = AppColors.tertiary;
-                      break;
-                    case 'Urgent':
-                      chipColor = AppColors.error;
-                      break;
-                    default:
-                      chipColor = AppColors.onSurfaceVariant;
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedPriority = p),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? chipColor.withValues(alpha: 0.12)
-                              : AppColors.surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? chipColor
-                                : const Color(0xFFE2E8F0),
-                            width: isSelected ? 1.5 : 1,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: _priorities.map((p) {
+                    final isSelected = _selectedPriority == p['value'];
+                    Color chipColor;
+                    switch (p['value']) {
+                      case 'low':
+                        chipColor = AppColors.success;
+                        break;
+                      case 'medium':
+                        chipColor = AppColors.primary;
+                        break;
+                      case 'high':
+                        chipColor = const Color(0xFFD97706);
+                        break;
+                      case 'urgent':
+                        chipColor = AppColors.error;
+                        break;
+                      default:
+                        chipColor = AppColors.onSurfaceVariant;
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedPriority = p['value']!),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
                           ),
-                        ),
-                        child: Text(
-                          p,
-                          style: AppTypography.bodySm.copyWith(
+                          decoration: BoxDecoration(
                             color: isSelected
-                                ? chipColor
-                                : AppColors.onSurfaceVariant,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            fontSize: 13,
+                                ? chipColor.withValues(alpha: 0.12)
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? chipColor
+                                  : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Text(
+                            p['label']!,
+                            style: AppTypography.bodySm.copyWith(
+                              color: isSelected
+                                  ? chipColor
+                                  : AppColors.onSurfaceVariant,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
 

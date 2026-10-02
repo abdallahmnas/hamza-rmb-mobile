@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../features/wallet/presentation/providers/wallet_provider.dart';
+import '../data/datasources/clearance_remote_data_source.dart';
 import '../data/models/clearance_request_model.dart';
 import '../presentation/providers/customs_clearance_provider.dart';
 
@@ -35,6 +37,13 @@ class _ClearanceDetailsPageState extends ConsumerState<ClearanceDetailsPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final targetId = widget.initialRequest?.id ?? widget.initialRequestId;
+      if (targetId != null) {
+        ref.read(customsClearanceProvider.notifier).fetchRequestById(targetId);
+      }
+    });
   }
 
   @override
@@ -1594,39 +1603,79 @@ class _ClearanceDetailsPageState extends ConsumerState<ClearanceDetailsPage>
 
     if (source == null) return;
 
-    String fileName = '${doc.documentType.replaceAll(' ', '_')}_uploaded.pdf';
     try {
       final picked = await picker.pickImage(source: source);
-      if (picked != null) {
-        fileName = picked.name;
+      if (picked == null) return;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Text('Uploading ${doc.documentType}...'),
+            ],
+          ),
+          backgroundColor: AppColors.primary,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
+      String fileUrl = '';
+      try {
+        fileUrl = await ref
+            .read(clearanceRemoteDataSourceProvider)
+            .uploadFile(File(picked.path));
+      } catch (_) {
+        fileUrl = picked.path;
       }
-    } catch (_) {}
 
-    final updatedDoc = doc.copyWith(
-      fileName: fileName,
-      fileUrl: 'https://example.com/uploads/$fileName',
-      status: 'Uploaded',
-      isNotAvailable: false,
-      uploadedAt: DateTime.now(),
-      note: null,
-    );
+      final updatedDoc = doc.copyWith(
+        fileName: picked.name,
+        fileUrl: fileUrl,
+        status: 'Uploaded',
+        isNotAvailable: false,
+        uploadedAt: DateTime.now(),
+        note: null,
+      );
 
-    await ref
-        .read(customsClearanceProvider.notifier)
-        .uploadAdditionalDocument(request.id, updatedDoc);
+      await ref
+          .read(customsClearanceProvider.notifier)
+          .uploadAdditionalDocument(request.id, updatedDoc);
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Uploaded ${doc.documentType} successfully!'),
-        backgroundColor: const Color(0xFF059669),
-      ),
-    );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Uploaded ${doc.documentType} successfully!'),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 
   Future<void> _showAddNewDocModal(ClearanceRequestModel request) async {
     final typeController = TextEditingController(text: 'Commercial Invoice');
     final nameController = TextEditingController();
+    XFile? selectedFile;
+    bool isUploading = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1634,69 +1683,131 @@ class _ClearanceDetailsPageState extends ConsumerState<ClearanceDetailsPage>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Add Supporting Document',
-              style: AppTypography.headlineMd.copyWith(
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: typeController,
-              decoration: const InputDecoration(
-                labelText: 'Document Type',
-                hintText: 'e.g. SONCAP, NAFDAC permit, Form M',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'File Name',
-                hintText: 'e.g. Permitted_Certificate.pdf',
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  final newDoc = ClearanceDocument(
-                    id: 'doc-${DateTime.now().millisecondsSinceEpoch}',
-                    documentType: typeController.text.trim(),
-                    fileName: nameController.text.trim().isNotEmpty
-                        ? nameController.text.trim()
-                        : '${typeController.text.trim()}.pdf',
-                    fileUrl: 'https://example.com/doc.pdf',
-                    status: 'Uploaded',
-                    uploadedAt: DateTime.now(),
-                  );
-                  ref
-                      .read(customsClearanceProvider.notifier)
-                      .uploadAdditionalDocument(request.id, newDoc);
-                  Navigator.pop(ctx);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add Supporting Document',
+                  style: AppTypography.headlineMd.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
-                child: const Text('Save & Upload'),
-              ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: typeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Document Type',
+                    hintText: 'e.g. SONCAP, NAFDAC permit, Form M',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'File Name',
+                    hintText: selectedFile != null
+                        ? selectedFile!.name
+                        : 'e.g. Certificate.pdf',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: isUploading
+                      ? null
+                      : () async {
+                          final picker = ImagePicker();
+                          final picked = await picker.pickImage(source: ImageSource.gallery);
+                          if (picked != null) {
+                            setModalState(() {
+                              selectedFile = picked;
+                              if (nameController.text.isEmpty) {
+                                nameController.text = picked.name;
+                              }
+                            });
+                          }
+                        },
+                  icon: const Icon(Icons.attach_file_rounded, size: 16),
+                  label: Text(
+                    selectedFile != null
+                        ? 'Selected: ${selectedFile!.name}'
+                        : 'Select File from Device',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isUploading
+                        ? null
+                        : () async {
+                            final docType = typeController.text.trim().isNotEmpty
+                                ? typeController.text.trim()
+                                : 'Commercial Invoice';
+                            final fileName = nameController.text.trim().isNotEmpty
+                                ? nameController.text.trim()
+                                : (selectedFile?.name ?? '$docType.pdf');
+
+                            setModalState(() => isUploading = true);
+
+                            String fileUrl = '';
+                            if (selectedFile != null) {
+                              try {
+                                fileUrl = await ref
+                                    .read(clearanceRemoteDataSourceProvider)
+                                    .uploadFile(File(selectedFile!.path));
+                              } catch (_) {
+                                fileUrl = selectedFile!.path;
+                              }
+                            }
+
+                            final newDoc = ClearanceDocument(
+                              id: 'doc-${DateTime.now().millisecondsSinceEpoch}',
+                              documentType: docType,
+                              fileName: fileName,
+                              fileUrl: fileUrl,
+                              status: 'Uploaded',
+                              uploadedAt: DateTime.now(),
+                            );
+
+                            await ref
+                                .read(customsClearanceProvider.notifier)
+                                .uploadAdditionalDocument(request.id, newDoc);
+
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: isUploading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Save & Upload'),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

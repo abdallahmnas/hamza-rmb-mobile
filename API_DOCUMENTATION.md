@@ -2,9 +2,13 @@
 
 > **Live API Base URL:** `https://hamza-rmb.onrender.com/api/v1`  
 > **Swagger UI:** `https://hamza-rmb.onrender.com/api-docs/`  
-> **Local Dev Base URL:** `https://hamza-rmb.onrender.com/api/v1`  
+> **Local Dev Base URL:** `http://localhost:5000/api/v1`  
 > **OpenAPI Specification Version:** `3.0.0`  
-> **Scope:** Customer & Mobile App Endpoints (All internal Admin & Staff operations strictly excluded)
+> **Mobile Client SDK Generation:**
+>
+> ```bash
+> npx @openapitools/openapi-generator-cli generate -i https://hamza-rmb.onrender.com/api-docs/swagger-ui-init.js -g dart -o lib/api
+> ```
 
 ---
 
@@ -13,16 +17,17 @@
 1. [Global Architecture & Authentication](#1-global-architecture--authentication)
 2. [Public Metadata, Pricing & Settings](#2-public-metadata-pricing--settings)
 3. [Authentication & Customer Profile](#3-authentication--customer-profile)
-4. [Shipments, Consolidations & Tracking](#4-shipments-consolidations--tracking)
-5. [Buy-For-Me (1688 / Taobao Procurement)](#5-buy-for-me-1688--taobao-procurement)
-6. [RMB Currency Exchange & Saved Accounts](#6-rmb-currency-exchange--saved-accounts)
-7. [Customer Wallet & Deposits](#7-customer-wallet--deposits)
-8. [Doorstep Delivery & Dispatch (Nigeria)](#8-doorstep-delivery--dispatch-nigeria)
-9. [Customer Support Tickets](#9-customer-support-tickets)
-10. [In-App Notifications](#10-in-app-notifications)
-11. [AI Assistant (Aisha Chatbot)](#11-ai-assistant-aisha-chatbot)
-12. [Media & File Uploads](#12-media--file-uploads)
-13. [Data Models & Schema Reference](#13-data-models--schema-reference)
+4. [Shipments, Consolidations & Master Batches](#4-shipments-consolidations--master-batches)
+5. [Customs Clearance](#5-customs-clearance)
+6. [Buy-For-Me (1688 / Taobao Procurement)](#6-buy-for-me-1688--taobao-procurement)
+7. [RMB Currency Exchange & Saved Accounts](#7-rmb-currency-exchange--saved-accounts)
+8. [Customer Wallet & Deposits](#8-customer-wallet--deposits)
+9. [Doorstep Delivery & Dispatch (Nigeria)](#9-doorstep-delivery--dispatch-nigeria)
+10. [Customer Support Tickets](#10-customer-support-tickets)
+11. [In-App Notifications](#11-in-app-notifications)
+12. [AI Assistant (Aisha Chatbot)](#12-ai-assistant-aisha-chatbot)
+13. [Media & File Uploads](#13-media--file-uploads)
+14. [Data Models & Schema Reference](#14-data-models--schema-reference)
 
 ---
 
@@ -46,7 +51,7 @@
 }
 ```
 
-_(Some endpoints also return top-level `{ "success": true, "data": ... }`.)_
+_(Some legacy or public endpoints may return `{ "success": true, "data": ... }`.)_
 
 #### Error Envelope (`ErrorResponse`)
 
@@ -63,7 +68,7 @@ _(Some endpoints also return top-level `{ "success": true, "data": ... }`.)_
 
 ### `GET /settings`
 
-- **Summary:** Fetch global system metadata, freight rates, live exchange rates, minimum shipment thresholds, and company escrow details.
+- **Summary:** Fetch global system metadata, freight rates, live exchange rates, minimum shipment thresholds, customs clearance fees, and company escrow details.
 - **Auth:** Public (No token required)
 - **Response (200 OK):**
 
@@ -80,6 +85,7 @@ _(Some endpoints also return top-level `{ "success": true, "data": ... }`.)_
     "minSeaFreightCbm": 0.1,
     "buyForMeFeePercent": 5,
     "buyForMeFixedFee": 1000,
+    "customsClearanceFee": 35000,
     "ngnEscrowBankName": "GTBank",
     "ngnEscrowAccountNo": "0123456789",
     "ngnEscrowAccountName": "Hamza RMB Trading Escrow Ltd",
@@ -149,6 +155,8 @@ _(Some endpoints also return top-level `{ "success": true, "data": ... }`.)_
 
 - **Summary:** List all origin (China intake hubs) and destination (Nigeria branches/hubs) warehouse facilities.
 - **Auth:** Public (No token required)
+- **Query Parameters:**
+  - `country` (string, optional): Filter by country (e.g. `China` or `Nigeria`)
 - **Response (200 OK):**
 
 ```json
@@ -182,9 +190,9 @@ _(Some endpoints also return top-level `{ "success": true, "data": ... }`.)_
 
 ### `GET /meta/options`
 
-- **Summary:** Get all valid system enums, shipment statuses, ticket categories, priorities, vehicle types, and configuration options.
+- **Summary:** Get all valid system enums, shipment statuses, ticket categories, priorities, vehicle types, clearance statuses, and configuration options.
 - **Auth:** Public (No token required)
-- **Response (200 OK):** Dictionary of system categories, statuses, vehicle types, and roles.
+- **Response (200 OK):** Dictionary of system categories, statuses, vehicle types, clearance enums, and roles.
 
 ---
 
@@ -435,7 +443,7 @@ _(Some endpoints also return top-level `{ "success": true, "data": ... }`.)_
 
 ---
 
-## 4. Shipments, Consolidations & Tracking
+## 4. Shipments, Consolidations & Master Batches
 
 ### `POST /shipments/pre-alert`
 
@@ -513,9 +521,10 @@ _Note: The API accepts standard OpenAPI fields (`trackingNumber`, `courierName`,
 
 ---
 
-### `POST /shipments/consolidate`
+### `POST /shipments/consolidations`
 
-- **Summary:** Bundle multiple received warehouse packages into a single consolidated air or sea consignment.
+- **Summary:** Bundle multiple received warehouse packages into a single consolidated air or sea consignment.  
+  _(Also accessible via legacy alias `POST /shipments/consolidate`.)_
 - **Auth:** `Bearer Token`
 - **Request Body:**
 
@@ -530,6 +539,7 @@ _Note: The API accepts standard OpenAPI fields (`trackingNumber`, `courierName`,
 
 - **Field Options:**
   - `shippingMethod`: `"air" | "sea" | "express"`
+  - `destinationWarehouse`: `"lagos" | "kano" | "abuja"`
   - `paymentMethod`: `"wallet" | "cash_on_delivery"`
 - **Response (201 Created):**
 
@@ -561,12 +571,30 @@ _Note: The API accepts standard OpenAPI fields (`trackingNumber`, `courierName`,
 
 ---
 
+### `PUT /shipments/consolidations/{id}`
+
+- **Summary:** Update consolidation shipment status or details.
+- **Auth:** `Bearer Token`
+- **Path Parameters:**
+  - `id` (string, required): Consolidation ID (e.g. `con-5001`)
+- **Response (200 OK):** Updated consolidation object.
+
+---
+
+### `GET /shipments/batches`
+
+- **Summary:** List master shipping batches (Air and Sea containers).
+- **Auth:** `Bearer Token`
+- **Response (200 OK):** Array of master `Batch` objects.
+
+---
+
 ### `GET /shipments/tracking/{id}`
 
 - **Summary:** Public track-and-trace lookup by tracking number, consolidation ID, or master batch ID.
 - **Auth:** Public (No token required)
 - **Path Parameters:**
-  - `id` (string, required): e.g. `HZ-CN-90812`, `SF10928374`, or `CON-10021`
+  - `id` (string, required): e.g. `HZ-CN-90812`, `SF10928374`, `CON-10021`, or `HZ-BATCH-AIR-20260816-102`
 - **Response (200 OK):**
 
 ```json
@@ -595,7 +623,341 @@ _Note: The API accepts standard OpenAPI fields (`trackingNumber`, `courierName`,
 
 ---
 
-## 5. Buy-For-Me (1688 / Taobao Procurement)
+## 5. Customs Clearance
+
+The Customs Clearance module provides end-to-end management for importing sea, air, and land consignments into Nigeria. It syncs directly with the 5-step stepper workflow in the mobile app, handling item inventories, documentation review, customs duty assessments, messaging threads, and wallet charge settlement.
+
+### Endpoints Overview
+
+| Method  | Path                              | Auth     | Description                                      |
+| :------ | :-------------------------------- | :------- | :----------------------------------------------- |
+| `POST`  | `/clearance/requests`             | `Bearer` | Submit new request or save draft                 |
+| `GET`   | `/clearance/requests`             | `Bearer` | List user's customs clearance requests           |
+| `GET`   | `/clearance/requests/{id}`        | `Bearer` | Get single request details, items, docs & thread |
+| `PATCH` | `/clearance/requests/{id}/status` | `Bearer` | Update clearance status (Admin / Agent)          |
+| `POST`  | `/clearance/requests/{id}/pay`    | `Bearer` | Pay assessed clearance charges via wallet        |
+
+---
+
+### `POST /clearance/requests`
+
+- **Summary:** Submit or save draft customs clearance request syncing with mobile 5-step stepper payload.  
+  _(Also mounted at `POST /clearance`.)_
+- **Auth:** `Bearer Token`
+- **Request Body (application/json):**
+
+```json
+{
+  "id": "clr-req-1775059636000",
+  "requestNumber": "CLR-2026-001005",
+  "customerId": "HZ-88912",
+  "shipmentType": "Sea",
+  "originCountry": "China",
+  "portOfEntry": "Apapa Port",
+  "shipmentStatus": "In transit",
+  "shippingLine": "COSCO Shipping Lines",
+  "airline": null,
+  "billOfLadingNumber": "COSU632819001",
+  "airWaybillNumber": null,
+  "containerNumber": "CSQU3091823",
+  "estimatedArrivalDate": "2026-10-15T00:00:00.000Z",
+  "hasMissingShipmentInfo": false,
+  "status": "SUBMITTED",
+  "deliveryPreference": "Deliver to me",
+  "deliveryAddress": {
+    "fullName": "Bello Al-Hassan",
+    "phone": "+234 803 123 4567",
+    "address": "Plot 14, Commercial Avenue, Ikeja Industrial Estate",
+    "city": "Ikeja",
+    "state": "Lagos State",
+    "instructions": "Call receiving officer upon arrival at Gate 2"
+  },
+  "items": [
+    {
+      "id": "itm-1775059636000-1",
+      "clearanceRequestId": "",
+      "productName": "Smart Watches & Fitness Trackers",
+      "description": "AMOLED touch screen, heart rate sensors, bluetooth calling",
+      "category": "Electronics",
+      "quantity": 350,
+      "unit": "pieces",
+      "purchaseValue": 24.5,
+      "currency": "USD",
+      "countryOfManufacture": "China",
+      "weight": 120,
+      "volume": 1.8,
+      "hsCode": "8517.62"
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-invoice",
+      "clearanceRequestId": "",
+      "documentType": "Commercial Invoice",
+      "fileName": "INV-SZ-2026-9081.pdf",
+      "fileUrl": "https://storage.hamza-rmb.com/docs/INV-SZ-2026-9081.pdf",
+      "status": "Uploaded",
+      "uploadedAt": "2026-09-30T17:10:00.000Z",
+      "isNotAvailable": false,
+      "note": null
+    }
+  ]
+}
+```
+
+#### Field Specifications:
+
+- **`shipmentType`**: `"Sea" | "Air" | "Land"` (Required)
+- **`originCountry`**: Origin country name (Required, e.g. `"China"`)
+- **`portOfEntry`**: Destination port or terminal (Required, e.g. `"Apapa Port"`, `"Tin Can Island"`, `"Murtala Muhammed Airport (LOS)"`)
+- **`shipmentStatus`**: Current freight position (e.g. `"In transit"`, `"Arrived in Nigeria (uncleared)"`, `"At terminal/warehouse"`, `"Not yet shipped"`)
+- **`shippingLine`**: Required/optional based on Sea mode (e.g. `"COSCO"`, `"Maersk"`, `"MSC"`)
+- **`airline`**: Required/optional based on Air mode (e.g. `"Ethiopian Cargo"`, `"Qatar Airways"`)
+- **`billOfLadingNumber`** / **`airWaybillNumber`**: Carrier shipping document number
+- **`containerNumber`**: Sea container serial (e.g. `"CSQU3091823"`)
+- **`hasMissingShipmentInfo`**: `boolean` — Set to `true` if user does not yet have B/L or container details
+- **`status`**: `"SUBMITTED"` for immediate processing, or `"DRAFT"` for saving progress
+- **`deliveryPreference`**: `"Deliver to me"` | `"I'll arrange pickup/delivery myself"`
+- **`deliveryAddress`**: Delivery contact and address details (required if `deliveryPreference === "Deliver to me"`)
+- **`items`**: Array of consignment item declarations:
+  - `productName`: Name of goods (Required)
+  - `category`: Product classification (e.g. `"Electronics"`, `"Textiles"`, `"Auto Parts"`)
+  - `quantity`: Number of items (Required, > 0)
+  - `unit`: Unit of measure (e.g. `"pieces"`, `"cartons"`, `"sets"`, `"kg"`)
+  - `purchaseValue`: Declared unit or total purchase value (Required)
+  - `currency`: `"USD" | "CNY" | "NGN"` (Required)
+  - `countryOfManufacture`: Origin country (Required)
+  - `hsCode`: 6 to 10 digit Harmonized Tariff Code (e.g. `"8517.62"`)
+  - `weight` & `volume`: Gross weight (kg) and CBM
+- **`documents`**: Array of uploaded or noted clearance documents:
+  - Standard types: `"Commercial Invoice"`, `"Packing List"`, `"Bill of Lading"`, `"Air Waybill"`, `"Certificate of Origin"`, `"Form M"`, `"PAAR"`, `"NAFDAC Permit"`, `"SONCAP"`
+  - `isNotAvailable`: Set to `true` if client cannot provide document yet
+
+- **Response (201 Created):**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "clr-req-1775059636000",
+    "requestNumber": "CLR-2026-001005",
+    "customerId": "HZ-88912",
+    "shipmentType": "Sea",
+    "originCountry": "China",
+    "portOfEntry": "Apapa Port",
+    "status": "SUBMITTED",
+    "totalValueUsd": 8575,
+    "createdAt": "2026-09-30T17:15:00.000Z"
+  }
+}
+```
+
+---
+
+### `GET /clearance/requests`
+
+- **Summary:** List customer customs clearance requests with status tracking.
+- **Auth:** `Bearer Token`
+- **Query Parameters:**
+  - `status` (string, optional): e.g. `ACTIVE`, `SUBMITTED`, `DOCUMENT_REVIEW`, `CUSTOMS_RELEASED`, `COMPLETED`
+- **Response (200 OK):**
+
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "clr-req-1775059636000",
+      "requestNumber": "CLR-2026-001005",
+      "shipmentType": "Sea",
+      "portOfEntry": "Apapa Port",
+      "status": "CLEARANCE_PROCESSING",
+      "billOfLadingNumber": "COSU632819001",
+      "containerNumber": "CSQU3091823",
+      "estimatedArrivalDate": "2026-10-15T00:00:00.000Z",
+      "totalProductsCount": 350,
+      "totalValueUsd": 8575,
+      "createdAt": "2026-09-30T17:15:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /clearance/requests/{id}`
+
+- **Summary:** Get full clearance request details including declared items, uploaded documents, duty charges, timeline history, and support thread.
+- **Auth:** `Bearer Token`
+- **Path Parameters:**
+  - `id` (string, required): Clearance request ID
+- **Response (200 OK):**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "clr-req-1775059636000",
+    "requestNumber": "CLR-2026-001005",
+    "customerId": "usr-1002",
+    "customerName": "Bello Al-Hassan",
+    "shipmentType": "Sea",
+    "originCountry": "China",
+    "portOfEntry": "Apapa Port",
+    "shipmentStatus": "In transit",
+    "shippingLine": "COSCO Shipping Lines",
+    "billOfLadingNumber": "COSU632819001",
+    "containerNumber": "CSQU3091823",
+    "status": "AWAITING_PAYMENT",
+    "deliveryPreference": "Deliver to me",
+    "deliveryAddress": {
+      "fullName": "Bello Al-Hassan",
+      "phone": "+234 803 123 4567",
+      "address": "Plot 14, Commercial Avenue, Ikeja Industrial Estate",
+      "city": "Ikeja",
+      "state": "Lagos State"
+    },
+    "items": [
+      {
+        "id": "itm-01",
+        "productName": "Smart Watches & Fitness Trackers",
+        "category": "Electronics",
+        "quantity": 350,
+        "unit": "pieces",
+        "purchaseValue": 24.5,
+        "currency": "USD",
+        "hsCode": "8517.62"
+      }
+    ],
+    "documents": [
+      {
+        "id": "doc-01",
+        "documentType": "Commercial Invoice",
+        "fileName": "INV-SZ-2026-9081.pdf",
+        "fileUrl": "https://storage.hamza-rmb.com/docs/INV-SZ-2026-9081.pdf",
+        "status": "Accepted"
+      }
+    ],
+    "charges": [
+      {
+        "id": "chg-01",
+        "category": "customs_duty",
+        "description": "NCS Import Duty & Taxes (20% + 7.5% VAT)",
+        "amount": 420000,
+        "currency": "NGN",
+        "isConfirmed": true,
+        "status": "pending"
+      },
+      {
+        "id": "chg-02",
+        "category": "service_fee",
+        "description": "Hamza RMB Agency Documentation & Processing",
+        "amount": 35000,
+        "currency": "NGN",
+        "isConfirmed": true,
+        "status": "pending"
+      }
+    ],
+    "statusHistory": [
+      {
+        "status": "SUBMITTED",
+        "timestamp": "2026-09-30T17:15:00.000Z",
+        "note": "Clearance request submitted by client"
+      },
+      {
+        "status": "DOCUMENT_REVIEW",
+        "timestamp": "2026-10-01T09:30:00.000Z",
+        "note": "Commercial Invoice & Bill of Lading validated"
+      },
+      {
+        "status": "AWAITING_PAYMENT",
+        "timestamp": "2026-10-02T11:00:00.000Z",
+        "note": "Assessment issued. Total payable: ₦455,000"
+      }
+    ],
+    "messages": [
+      {
+        "id": "msg-01",
+        "senderRole": "clearance_agent",
+        "senderName": "Agent Sani",
+        "message": "Assessment notice uploaded. Please fund your wallet and authorize payment.",
+        "createdAt": "2026-10-02T11:05:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### `PATCH /clearance/requests/{id}/status`
+
+- **Summary:** Modify status of a customs clearance request (Admin / Clearance Agent).
+- **Auth:** `Bearer Token` (Staff / Admin role)
+- **Path Parameters:**
+  - `id` (string, required): Clearance request ID
+- **Request Body:**
+
+```json
+{
+  "status": "CLEARANCE_PROCESSING",
+  "note": "Physical terminal inspection passed without queries.",
+  "requiredActionNote": "Please provide certified commercial invoice."
+}
+```
+
+#### Valid Status Enums:
+
+- `"SUBMITTED"`: Initial application submitted
+- `"DOCUMENT_REVIEW"`: Agent reviewing submitted declarations & bills
+- `"ADDITIONAL_INFORMATION_REQUIRED"`: Customer action required (missing doc or value query)
+- `"CLEARANCE_PROCESSING"`: Port terminal processing underway
+- `"CUSTOMS_ASSESSMENT"`: Nigeria Customs Service (NCS) duty valuation
+- `"INSPECTION"`: Terminal physical or scanning inspection
+- `"AWAITING_PAYMENT"`: Duty assessment issued, awaiting client wallet payment
+- `"CUSTOMS_RELEASED"`: NCS release order granted & gate pass issued
+- `"DELIVERY"`: Final local delivery dispatch
+- `"COMPLETED"`: Cargo delivered to destination
+- `"ON_HOLD"`: Clearance suspended pending regulatory clearance
+- `"CANCELLED"`: Request cancelled
+
+- **Response (200 OK):** Status updated successfully.
+
+---
+
+### `POST /clearance/requests/{id}/pay`
+
+- **Summary:** Pay pending clearance charges using customer wallet. Automatically debits total pending assessed fees from customer's Naira wallet and updates charge statuses to `paid`.
+- **Auth:** `Bearer Token`
+- **Path Parameters:**
+  - `id` (string, required): Clearance request ID
+- **Response (200 OK):**
+
+```json
+{
+  "status": "success",
+  "message": "Clearance charges paid successfully",
+  "data": {
+    "id": "clr-req-1775059636000",
+    "requestNumber": "CLR-2026-001005",
+    "status": "CUSTOMS_RELEASED",
+    "totalPaid": 455000,
+    "currency": "NGN"
+  }
+}
+```
+
+---
+
+### Additional Clearance Actions
+
+- **`POST /clearance/requests/{id}/documents`**: Upload additional document to an active request.
+- **`POST /clearance/requests/{id}/messages`**: Post a question or response message on the clearance request thread.
+- **`POST /clearance/requests/{id}/cancel`**: Cancel an active clearance request before customs release.
+
+---
+
+## 6. Buy-For-Me (1688 / Taobao Procurement)
 
 ### `POST /procurements/request`
 
@@ -669,7 +1031,7 @@ _Note: The API accepts standard OpenAPI fields (`trackingNumber`, `courierName`,
 
 ---
 
-## 6. RMB Currency Exchange & Saved Accounts
+## 7. RMB Currency Exchange & Saved Accounts
 
 ### `GET /exchanges/rate`
 
@@ -735,7 +1097,7 @@ _Note: The API accepts standard OpenAPI fields (`trackingNumber`, `courierName`,
 }
 ```
 
-_Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_bank"`) are supported by the backend._
+_Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_bank"`) are accepted._
 
 - **Response (201 Created):** Beneficiary account saved successfully.
 
@@ -763,9 +1125,10 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ### Exchange Requests
 
-#### `POST /exchanges/request` (or `POST /exchanges`)
+#### `POST /exchanges/request`
 
-- **Summary:** Submit a new RMB currency exchange transfer request.
+- **Summary:** Submit a new RMB currency exchange transfer request.  
+  _(Also accepted at `POST /exchanges`.)_
 - **Auth:** `Bearer Token`
 - **Request Body:**
 
@@ -829,7 +1192,7 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ---
 
-## 7. Customer Wallet & Deposits
+## 8. Customer Wallet & Deposits
 
 ### `GET /wallet`
 
@@ -854,7 +1217,7 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ### `GET /wallet/transactions`
 
-- **Summary:** List customer's wallet transaction ledger history (credits, debits, orders, top-ups).
+- **Summary:** List customer's wallet transaction ledger history (credits, debits, clearance charges, top-ups).
 - **Auth:** `Bearer Token`
 - **Response (200 OK):** Array of wallet transaction entries.
 
@@ -900,7 +1263,7 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ---
 
-## 8. Doorstep Delivery & Dispatch (Nigeria)
+## 9. Doorstep Delivery & Dispatch (Nigeria)
 
 ### `POST /delivery/request`
 
@@ -945,11 +1308,11 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ---
 
-## 9. Customer Support Tickets
+## 10. Customer Support Tickets
 
 ### `POST /support/tickets`
 
-- **Summary:** Open a support ticket regarding shipments, exchanges, payments, or procurement.
+- **Summary:** Open a support ticket regarding shipments, exchanges, payments, procurement, or customs clearance.
 - **Auth:** `Bearer Token`
 - **Request Body:**
 
@@ -965,7 +1328,8 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 }
 ```
 
-- **Category Enum:** `"shipment" | "payment" | "exchange" | "procurement" | "delivery" | "account" | "other"`
+- **Category Enum:** `"shipment" | "payment" | "exchange" | "procurement" | "delivery" | "account" | "clearance" | "other"`
+- **Priority Enum:** `"low" | "medium" | "high" | "urgent"`
 - **Response (201 Created):**
 
 ```json
@@ -1023,11 +1387,11 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ---
 
-## 10. In-App Notifications
+## 11. In-App Notifications
 
 ### `GET /notifications`
 
-- **Summary:** Fetch user's in-app notification feed (shipment status updates, exchange confirmations, wallet credits).
+- **Summary:** Fetch user's in-app notification feed (shipment status updates, exchange confirmations, clearance updates, wallet credits).
 - **Auth:** `Bearer Token`
 - **Response (200 OK):**
 
@@ -1072,17 +1436,17 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ---
 
-## 11. AI Assistant (Aisha Chatbot)
+## 12. AI Assistant (Aisha Chatbot)
 
 ### `POST /chat/chat`
 
-- **Summary:** Real-time conversational AI support assistant Aisha. Answering customer inquiries about freight pricing, procedures, and addresses.
+- **Summary:** Real-time conversational AI support assistant Aisha. Answering customer inquiries about freight pricing, customs clearance procedures, warehouse addresses, and RMB exchange.
 - **Auth:** Public (No token required)
 - **Request Body:**
 
 ```json
 {
-  "message": "What is your air cargo rate per kg to Lagos?"
+  "message": "What is the customs clearance procedure for a 40ft container in Apapa?"
 }
 ```
 
@@ -1091,17 +1455,17 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 ```json
 {
   "success": true,
-  "response": "Our Air Freight rate is currently ₦12,500/kg with a minimum threshold of 1.0kg. Packages arrive in Lagos within 3 to 5 business days."
+  "response": "To clear a 40ft container at Apapa Port, submit a Customs Clearance request via our app with your Bill of Lading, Commercial Invoice, and Packing List. Our terminal team will assess the NCS duty tariff and inspect the container within 3-5 business days."
 }
 ```
 
 ---
 
-## 12. Media & File Uploads
+## 13. Media & File Uploads
 
 ### `POST /upload`
 
-- **Summary:** Upload image, barcode, receipt, or document file directly to Cloudinary storage. Returns public CDN URL.
+- **Summary:** Upload image, barcode, receipt, or customs PDF document directly to Cloudinary storage. Returns public CDN URL.
 - **Auth:** `Bearer Token`
 - **Content-Type:** `multipart/form-data`
 - **Form Data:**
@@ -1117,7 +1481,7 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
 
 ---
 
-## 13. Data Models & Schema Reference
+## 14. Data Models & Schema Reference
 
 ### `User`
 
@@ -1167,6 +1531,97 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
   "totalCbm": 0.08,
   "shippingFee": 125,
   "status": "ready_to_batch"
+}
+```
+
+### `Batch` (Master Shipping Batch)
+
+```json
+{
+  "id": "btc-901",
+  "masterTrackingId": "HZ-BATCH-AIR-20260816-102",
+  "carrierName": "Ethiopian Cargo",
+  "flightVoyageNo": "ET-3801",
+  "shippingType": "air",
+  "status": "shipping_exported",
+  "consolidationCount": 8,
+  "departureDate": "2026-08-18T14:30:00.000Z"
+}
+```
+
+### `ClearanceRequest`
+
+```json
+{
+  "id": "clr-req-1775059636000",
+  "requestNumber": "CLR-2026-001005",
+  "customerId": "usr-1002",
+  "customerName": "Bello Al-Hassan",
+  "shipmentType": "Sea",
+  "originCountry": "China",
+  "portOfEntry": "Apapa Port",
+  "shipmentStatus": "In transit",
+  "shippingLine": "COSCO Shipping Lines",
+  "billOfLadingNumber": "COSU632819001",
+  "containerNumber": "CSQU3091823",
+  "estimatedArrivalDate": "2026-10-15T00:00:00.000Z",
+  "hasMissingShipmentInfo": false,
+  "status": "SUBMITTED",
+  "deliveryPreference": "Deliver to me",
+  "totalValueUsd": 8575,
+  "totalProductsCount": 350,
+  "createdAt": "2026-09-30T17:15:00.000Z"
+}
+```
+
+### `ClearanceItem`
+
+```json
+{
+  "id": "itm-1775059636000-1",
+  "clearanceRequestId": "clr-req-1775059636000",
+  "productName": "Smart Watches & Fitness Trackers",
+  "description": "AMOLED touch screen, heart rate sensors, bluetooth calling",
+  "category": "Electronics",
+  "quantity": 350,
+  "unit": "pieces",
+  "purchaseValue": 24.5,
+  "currency": "USD",
+  "countryOfManufacture": "China",
+  "weight": 120,
+  "volume": 1.8,
+  "hsCode": "8517.62"
+}
+```
+
+### `ClearanceDocument`
+
+```json
+{
+  "id": "doc-invoice",
+  "clearanceRequestId": "clr-req-1775059636000",
+  "documentType": "Commercial Invoice",
+  "fileName": "INV-SZ-2026-9081.pdf",
+  "fileUrl": "https://storage.hamza-rmb.com/docs/INV-SZ-2026-9081.pdf",
+  "status": "Uploaded",
+  "uploadedAt": "2026-09-30T17:10:00.000Z",
+  "isNotAvailable": false,
+  "note": null
+}
+```
+
+### `ClearanceCharge`
+
+```json
+{
+  "id": "chg-01",
+  "clearanceRequestId": "clr-req-1775059636000",
+  "category": "customs_duty",
+  "description": "NCS Import Duty & Taxes",
+  "amount": 420000,
+  "currency": "NGN",
+  "isConfirmed": true,
+  "status": "pending"
 }
 ```
 
@@ -1241,5 +1696,91 @@ _Note: Both `accountType` and `platform` (`"alipay" | "wechat_pay" | "chinese_ba
     "notes": "GTB Deposit Ref 88219",
     "createdAt": "2026-09-24T12:00:00.000Z"
   }
+}
+```
+
+### `DeliveryVehicle`
+
+```json
+{
+  "id": "vh-001",
+  "name": "Express Motorbike",
+  "type": "motorbike",
+  "description": "Fastest for light packages up to 15kg.",
+  "baseFare": 1000,
+  "perKmRate": 150,
+  "maxWeightKg": 15,
+  "imageUrl": "https://images.unsplash.com/photo-1558981806-ec527fa84c39",
+  "isActive": true
+}
+```
+
+### `Banner`
+
+```json
+{
+  "id": "bnr-101",
+  "title": "Fast Air Cargo Special",
+  "subtitle": "Guangzhou to Lagos in 3-5 days @ ₦12,500/kg",
+  "imageUrl": "https://images.unsplash.com/photo-1570710891163",
+  "linkUrl": "https://hamzarmb.com/air-cargo",
+  "targetScreen": "air_freight",
+  "displayOrder": 1,
+  "isActive": true
+}
+```
+
+### `Facility`
+
+```json
+{
+  "id": "fac-101",
+  "name": "Guangzhou Main Intake Warehouse",
+  "code": "CAN-01",
+  "country": "China",
+  "city": "Guangzhou",
+  "address": "Baiyun District, Logistics Park B",
+  "contactName": "Chen Wei",
+  "contactPhone": "+8613800138000",
+  "type": "warehouse",
+  "isActive": true
+}
+```
+
+### `Notification`
+
+```json
+{
+  "id": "ntf-901",
+  "userId": "usr-1002",
+  "title": "Package Received in Guangzhou",
+  "message": "Package SF10928374 has arrived at China intake hub.",
+  "type": "shipment_update",
+  "isRead": false,
+  "createdAt": "2026-09-24T10:15:00.000Z"
+}
+```
+
+### `SupportTicket`
+
+```json
+{
+  "id": "tkt-801",
+  "ticketNumber": "TCK-20260816-102",
+  "userId": "usr-1002",
+  "subject": "Delay on package SF10928",
+  "category": "shipment",
+  "status": "open",
+  "priority": "medium",
+  "description": "Package has been at China hub for 3 days",
+  "messages": [
+    {
+      "id": "msg-01",
+      "senderRole": "customer",
+      "senderName": "Hamza RMB",
+      "message": "Thank you for your update.",
+      "createdAt": "2026-09-24T12:00:00.000Z"
+    }
+  ]
 }
 ```

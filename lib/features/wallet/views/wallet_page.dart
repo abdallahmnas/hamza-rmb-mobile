@@ -221,7 +221,11 @@ class _WalletPageState extends ConsumerState<WalletPage> {
                 child: SectionHeader(
                   title: 'Recent Transactions',
                   actionText: 'View All',
-                  onActionPressed: () {},
+                  onActionPressed: () {
+                    setState(() {
+                      _selectedFilterIndex = 0;
+                    });
+                  },
                 ),
               ),
               const SizedBox(height: 10),
@@ -957,7 +961,23 @@ class _WalletPageState extends ConsumerState<WalletPage> {
 
   // ── Transactions List ─────────────────────────────────────────────────────
   Widget _buildTransactionsList() {
-    final transactions = ref.watch(walletProvider).transactions;
+    final walletState = ref.watch(walletProvider);
+    final transactions = walletState.transactions;
+
+    if (walletState.isLoading && transactions.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
 
     final filtered = transactions.where((tx) {
       if (_selectedFilterIndex == 0) return true;

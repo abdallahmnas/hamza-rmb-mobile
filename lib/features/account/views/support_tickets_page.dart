@@ -20,6 +20,14 @@ class _SupportTicketsPageState extends ConsumerState<SupportTicketsPage> {
   String _searchQuery = '';
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(supportProvider.notifier).fetchTickets();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -225,7 +233,11 @@ class _SupportTicketsPageState extends ConsumerState<SupportTicketsPage> {
 
             // ── Ticket List ─────────────────────────────────────────
             Expanded(
-              child: filtered.isEmpty
+              child: supportState.isLoading && tickets.isEmpty
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
+                    )
+                  : filtered.isEmpty
                   ? Center(
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),

@@ -70,6 +70,10 @@ class SupportNotifier extends Notifier<SupportState> {
     required String category,
     required String description,
     String? priority,
+    String? message,
+    String? referenceId,
+    String? imageUrl,
+    List<String>? attachments,
   }) async {
     state = state.copyWith(isSubmitting: true, error: null);
     try {
@@ -79,11 +83,19 @@ class SupportNotifier extends Notifier<SupportState> {
         category: category,
         description: description,
         priority: priority,
+        message: message,
+        referenceId: referenceId,
+        imageUrl: imageUrl,
+        attachments: attachments,
       );
+      final updated = [newTicket, ...state.tickets];
       state = state.copyWith(
-        tickets: [newTicket, ...state.tickets],
+        tickets: updated,
         isSubmitting: false,
       );
+      final storage = ref.read(localStorageProvider);
+      await storage.setString(
+          _storageKey, jsonEncode(updated.map((e) => e.toJson()).toList()));
       return true;
     } catch (e) {
       state = state.copyWith(isSubmitting: false, error: e.toString());
