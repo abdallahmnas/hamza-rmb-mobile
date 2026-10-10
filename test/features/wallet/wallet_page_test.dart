@@ -70,7 +70,7 @@ class MockPublicMetadataRemoteDataSource
       const SystemSettingsModel(cnyExchangeRate: 215.0);
 
   @override
-  Future<List<FacilityModel>> fetchFacilities() async => [];
+  Future<List<FacilityModel>> fetchFacilities({String? country}) async => [];
 }
 
 void main() {
